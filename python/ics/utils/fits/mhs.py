@@ -4,63 +4,10 @@ import string
 
 import numpy as np
 
-from opscore.protocols import types, keys
+from opscore.protocols import types
 from opscore.utility.qstr import qstr
-import astropy.io.fits as pyfits
 
 import fitsio
-
-def extendHeader(cmd, header, cards):
-    """ Add all the cards to the header. """
-
-    for name, val, comment in cards:
-        try:
-            header.update(name, val, comment)
-        except:
-            cmd.warn('text="failed to add card: %s=%s (%s)"' % (name, val, comment))
-
-def makeCard(cmd, name, value, comment=''):
-    """ Creates a pyfits Card. Does not raise exceptions. """
-
-    try:
-        c = pyfits.Card(name, value, comment)
-        return (name, value, comment)
-    except:
-        errStr = 'failed to make %s card from %s' % (name, value)
-        cmd.warn('text=%s' % (qstr(errStr)))
-        return ('comment', errStr, '')
-
-def makeCardFromKey(cmd, keyDict, keyName, cardName, cnv=None, idx=None, comment='', onFail=None):
-    """ Creates a pyfits Card from a Key. Does not raise exceptions. """
-
-    try:
-        val = keyDict[keyName]
-    except KeyError as e:
-        errStr = "failed to fetch %s" % (keyName)
-        cmd.warn('text=%s' % (qstr(errStr)))
-        return makeCard(cmd, cardName, onFail, errStr)
-
-    try:
-        if idx is not None:
-            val = val[idx]
-        else:
-            val = val.getValue()
-    except Exception as e:
-        errStr = "failed to index %s by %s from %s for %s: %s" % \
-            (val, idx, keyName, cardName, e)
-        cmd.warn('text=%s' % (qstr(errStr)))
-        return makeCard(cmd, cardName, onFail, errStr)
-
-    if cnv is not None:
-        try:
-            val = cnv(val)
-        except Exception as e:
-            errStr = "failed to convert %s from %s for %s using %s: %s" % \
-                (val, keyName, cardName, cnv, e)
-            cmd.warn('text=%s' % (qstr(errStr)))
-            return makeCard(cmd, cardName, onFail, errStr)
-
-    return makeCard(cmd, cardName, val, comment)
 
 def getExpiredValue(keyType, key):
     """ Return a type-correct Expired value. """
@@ -205,7 +152,7 @@ def gatherHeaderCards(cmd, actor, modelNames=None, shortNames=False):
     ----
     cmd : an actorcore Command
     actor : an actorcore Actor,
-      Which contans .models.
+      Used to get to actor.models.
     modelNames : None, or list of strings
       The actors to generate keys for. If None, all the models in actor.models
     shortNames : bool
@@ -226,7 +173,8 @@ def gatherHeaderCards(cmd, actor, modelNames=None, shortNames=False):
     for modName in modelNames:
         logger.info(f'gathering cards from model {modName}')
         try:
-            allCards.append(dict(name='comment', value=f'################################ Cards from {modName}'))
+            allCards.append(dict(name='comment',
+                                 value=f'################################ Cards from {modName}'))
             modCards = cardsFromModel(cmd, actor.models[modName], shortNames=shortNames)
             allCards.extend(modCards)
         except Exception as e:
@@ -401,7 +349,8 @@ def printHeaderFormats(cmd, actor, filename, longNames=True):
 
     with open(filename, "w") as of:
         if style == 'markdown':
-            of.write(f'## ``{actor.productName}`` FITS cards, generated from ``ics_actorkeys`` {_getActorkeyVersion(actor)}\n\n')
+            of.write(f'## ``{actor.productName}`` FITS cards, '
+                     f'generated from ``ics_actorkeys`` {_getActorkeyVersion(actor)}\n\n')
 
         of.write(dlim.join([f.capitalize() for f in fields]))
         of.write('\n')
