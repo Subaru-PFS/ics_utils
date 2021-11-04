@@ -35,7 +35,7 @@ def getInvalidValue(keyType, key):
         return 'invalid value'
     raise ValueError('unexpected type: %s' % (keyType.baseType))
 
-def cardsFromModel(cmd, model, shortNames=False):
+def cardsFromModel(cmd, model, shortNames=True):
     """
     For a given actorkeys model, return a list of all the FITS cards listed therein.
 
@@ -145,7 +145,7 @@ def makeNameTranslationHDU(cards):
 
     return mapping
 
-def gatherHeaderCards(cmd, actor, modelNames=None, shortNames=False):
+def gatherHeaderCards(cmd, actor, modelNames=None, shortNames=True):
     """ Fetch and return all FITS cards defined in the given models.
 
     Args
