@@ -22,31 +22,25 @@ class VisitAlreadyDone(Exception):
 class VisitManager(object):
     def __init__(self, actor):
         self.actor = actor
-        self.activeVisit = None
-
-    def __enter__(self):
-        return self.newVisit()
-
-    def __exit__(self):
-        self.releaseVisit()
+        self.activeVisit = dict()
 
     def newVisit(self, name=None):
         """ Allocate a new visit. """
+        # if self.activeVisit is not None:
+        #     raise VisitActiveError()
 
-        if self.activeVisit is not None:
-            raise VisitActiveError()
         visit = self._fetchVisitFromGen2()
 
-        self.activeVisit = Visit(visitId=visit, name=name)
+        self.activeVisit[visit] = Visit(visitId=visit, name=name)
 
-        return self.activeVisit
+        return self.activeVisit[visit]
 
-    def releaseVisit(self):
-        if self.activeVisit is None:
+    def releaseVisit(self, visit):
+        if self.activeVisit[visit] is None:
             raise VisitNotActiveError()
 
-        self.activeVisit.stop()
-        self.activeVisit = None
+        self.activeVisit[visit].stop()
+        self.activeVisit.pop(visit, None)
 
     def _fetchVisitFromGen2(self):
         """Actually get a new visit from Gen2.
