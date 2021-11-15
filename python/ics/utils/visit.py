@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from pfscore.gen2 import fetchVisitFromGen2
@@ -38,6 +39,9 @@ class VisitManager(object):
 
     def resetVisit0(self):
         """ Allocate a new visit. """
+        if self.visit0 is not None:
+            logging.warning(f'resetting visit0 : {str(self.visit0)}')
+
         self.visit0 = None
 
     def getVisit(self, consumer, name=None):
@@ -56,8 +60,13 @@ class VisitManager(object):
         self.activeVisit[visit] = Visit(visitId=visit, consumer=consumer, name=name)
         return self.activeVisit[visit]
 
-    def releaseVisit(self, visit, consumer=None):
+    def releaseVisit(self, visit=None, consumer=None):
         """ Allocate a new visit. """
+        if visit is None and len(self.activeVisit) == 1:
+            [visit] = list(self.activeVisit.keys())
+        else:
+            raise RuntimeError(f'dont know which visit to release : {",".join(map(str, self.activeVisit.keys()))}')
+
         if visit == self.visit0.visitId:
             return
 
