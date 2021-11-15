@@ -30,9 +30,9 @@ class VisitManager(object):
         """ Allocate a new visit. """
         return self.visit0 is not None
 
-    def declareNewField(self):
+    def declareNewField(self, designId):
         """ Allocate a new visit. """
-        visitId = self._fetchVisitFromGen2()
+        visitId = self._fetchVisitFromGen2(designId=designId)
         self.visit0 = VisitO(visitId)
         return self.visit0
 
@@ -67,11 +67,11 @@ class VisitManager(object):
         self.activeVisit[visit].stop()
         self.activeVisit.pop(visit, None)
 
-    def _fetchVisitFromGen2(self):
+    def _fetchVisitFromGen2(self, designId=None):
         """Actually get a new visit from Gen2.
         What PFS calls a "visit", Gen2 calls a "frame".
         """
-        return fetchVisitFromGen2(self.actor)
+        return fetchVisitFromGen2(self.actor, designId=designId)
 
 
 class Visit(object):
