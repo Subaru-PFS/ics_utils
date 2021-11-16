@@ -53,12 +53,18 @@ class VisitManager(object):
 
     def newVisit(self, consumer, name=None):
         """ Allocate a new visit. """
-        # if self.perConsumer(consumer) is not None:
-        #     raise VisitActiveError()
+        if consumer in self.gatherConsumers():
+            raise VisitActiveError()
 
         visit = self._fetchVisitFromGen2()
         self.activeVisit[visit] = Visit(visitId=visit, consumer=consumer, name=name)
         return self.activeVisit[visit]
+
+    def gatherConsumers(self):
+        """ Allocate a new visit. """
+        visit0Consumers = [] if not self.validVisit0 else self.visit0.activeConsumers()
+        activeConsumers = [visit.consumer for visit in self.activeVisit.values()]
+        return list(set(visit0Consumers + activeConsumers))
 
     def releaseVisit(self, visit=None, consumer=None):
         """ Allocate a new visit. """
@@ -69,6 +75,7 @@ class VisitManager(object):
                 raise RuntimeError(f'dont know which visit to release : {",".join(map(str, self.activeVisit.keys()))}')
 
         if self.validVisit0 and visit == self.visit0.visitId:
+            self.visit0.releaseVisit(consumer)
             return
 
         if self.activeVisit[visit] is None:
@@ -136,14 +143,27 @@ class Visit(object):
 
 
 class VisitO(Visit):
-    def __init__(self, visit, consumer='fps'):
-        Visit.__init__(self, visit, consumer=consumer)
-        self.consumers = dict(sps=True, agc=True)
+    def __init__(self, visit):
+        Visit.__init__(self, visit, consumer='fps')
+        self.available = dict(fps=True, sps=True, agc=True)
+        self.active = dict()
+
+        self.setActive('fps')
+
+    def activeConsumers(self):
+        return list(self.active.keys())
 
     def getVisit(self, consumer):
         """ """
-        if self.consumers[consumer]:
-            self.consumers[consumer] = False
+        if self.available[consumer]:
+            self.setActive(consumer)
             return True
 
         return False
+
+    def setActive(self, consumer):
+        self.available[consumer] = False
+        self.active[consumer] = True
+
+    def releaseVisit(self, consumer):
+        self.active.pop(consumer, None)
