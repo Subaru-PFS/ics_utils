@@ -94,6 +94,9 @@ class VisitManager(object):
 
 class Visit(object):
     def __init__(self, visitId, consumer=None, name=None):
+        # sps can have concurrent visit, beside resourceManager is already doing the job
+        consumer = f'sps{visitId}' if consumer == 'sps' else consumer
+
         self.visitId = visitId
         self.name = name
         self.consumer = consumer
