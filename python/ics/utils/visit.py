@@ -23,12 +23,21 @@ class VisitManager(object):
     def __init__(self, actor):
         self.actor = actor
         self.activeVisit = dict()
-        self.visit0 = None
+        self.visit0 = self.reloadVisit0()
 
     @property
     def validVisit0(self):
         """ Allocate a new visit. """
         return self.visit0 is not None
+
+    def reloadVisit0(self):
+        """ Reload persisted visit0. """
+        try:
+            visit0, = self.actor.instData.loadKey('visit0')
+        except:
+            visit0 = None
+
+        return visit0
 
     def declareNewField(self, designId):
         """ Declare new field, reset existing visit0 and set a new one. """
@@ -36,6 +45,8 @@ class VisitManager(object):
 
         visitId = self._fetchVisitFromGen2(designId=designId)
         self.visit0 = VisitO(visitId)
+        self.actor.instData.persistKey('visit0', visitId)
+
         return self.visit0
 
     def resetVisit0(self):
@@ -43,6 +54,7 @@ class VisitManager(object):
         if self.visit0 is not None:
             self.actor.bcast.warn(f'text="resetting visit0 : {str(self.visit0)}"')
 
+        self.actor.instData.persistKey('visit0', None)
         self.visit0 = None
 
     def getVisit(self, consumer, name=None):
