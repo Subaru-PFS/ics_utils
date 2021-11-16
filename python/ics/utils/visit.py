@@ -1,4 +1,3 @@
-import logging
 import threading
 
 from pfscore.gen2 import fetchVisitFromGen2
@@ -32,27 +31,29 @@ class VisitManager(object):
         return self.visit0 is not None
 
     def declareNewField(self, designId):
-        """ Allocate a new visit. """
+        """ Declare new field, reset existing visit0 and set a new one. """
+        self.resetVisit0()
+
         visitId = self._fetchVisitFromGen2(designId=designId)
         self.visit0 = VisitO(visitId)
         return self.visit0
 
     def resetVisit0(self):
-        """ Allocate a new visit. """
+        """ reset existing visit0. """
         if self.visit0 is not None:
-            logging.warning(f'resetting visit0 : {str(self.visit0)}')
+            self.actor.bcast.warn(f'text="resetting visit0 : {str(self.visit0)}"')
 
         self.visit0 = None
 
     def getVisit(self, consumer, name=None):
-        """ Allocate a new visit. """
+        """ Get visit, visit0 if available otherwise new one"""
         if self.validVisit0 and self.visit0.getVisit(consumer):
             return self.visit0
 
         return self.newVisit(consumer, name=name)
 
     def newVisit(self, consumer, name=None):
-        """ Allocate a new visit. """
+        """ Generate new visit. """
         if consumer in self.gatherConsumers():
             raise VisitActiveError()
 
@@ -61,13 +62,13 @@ class VisitManager(object):
         return self.activeVisit[visit]
 
     def gatherConsumers(self):
-        """ Allocate a new visit. """
+        """ Gather active visit consumers. """
         visit0Consumers = [] if not self.validVisit0 else self.visit0.activeConsumers()
         activeConsumers = [visit.consumer for visit in self.activeVisit.values()]
         return list(set(visit0Consumers + activeConsumers))
 
     def releaseVisit(self, visit=None, consumer=None):
-        """ Allocate a new visit. """
+        """ Release active visit. """
         if visit is None:
             try:
                 [visit] = list(self.activeVisit.keys())
@@ -151,10 +152,11 @@ class VisitO(Visit):
         self.setActive('fps')
 
     def activeConsumers(self):
+        """ Get list of active consumers. """
         return list(self.active.keys())
 
     def getVisit(self, consumer):
-        """ """
+        """ check if visit0 is available for that given consumer"""
         if self.available[consumer]:
             self.setActive(consumer)
             return True
@@ -162,8 +164,10 @@ class VisitO(Visit):
         return False
 
     def setActive(self, consumer):
+        """ Set that consumer active. """
         self.available[consumer] = False
         self.active[consumer] = True
 
     def releaseVisit(self, consumer):
+        """ release visit for that consumer. """
         self.active.pop(consumer, None)
