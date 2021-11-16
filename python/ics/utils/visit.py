@@ -27,7 +27,7 @@ class VisitManager(object):
         self.visit0 = None
 
     @property
-    def visit0isValid(self):
+    def validVisit0(self):
         """ Allocate a new visit. """
         return self.visit0 is not None
 
@@ -46,7 +46,7 @@ class VisitManager(object):
 
     def getVisit(self, consumer, name=None):
         """ Allocate a new visit. """
-        if self.visit0isValid and self.visit0.getVisit(consumer):
+        if self.validVisit0 and self.visit0.getVisit(consumer):
             return self.visit0
 
         return self.newVisit(consumer, name=name)
@@ -62,12 +62,13 @@ class VisitManager(object):
 
     def releaseVisit(self, visit=None, consumer=None):
         """ Allocate a new visit. """
-        if visit is None and len(self.activeVisit) == 1:
-            [visit] = list(self.activeVisit.keys())
-        else:
-            raise RuntimeError(f'dont know which visit to release : {",".join(map(str, self.activeVisit.keys()))}')
+        if visit is None:
+            try:
+                [visit] = list(self.activeVisit.keys())
+            except ValueError:
+                raise RuntimeError(f'dont know which visit to release : {",".join(map(str, self.activeVisit.keys()))}')
 
-        if visit == self.visit0.visitId:
+        if self.validVisit0 and visit == self.visit0.visitId:
             return
 
         if self.activeVisit[visit] is None:
@@ -99,8 +100,15 @@ class Visit(object):
 
     def stop(self):
         """Declare that we should not be used any more."""
-
         self.iAmDead = True
+
+    def agcFrameId(self):
+        """ AGC frame id accessor. """
+        return self.__agcFrameId
+
+    def fpsFrameId(self):
+        """ FPS frame id accessor. """
+        return self.__fpsFrameId
 
     def frameForAGC(self):
         if self.iAmDead:
