@@ -1,5 +1,6 @@
 import threading
 
+from ics.utils.opdb import opDB
 from pfscore.gen2 import fetchVisitFromGen2
 
 
@@ -33,7 +34,9 @@ class VisitManager(object):
     def reloadVisit0(self):
         """ Reload persisted visit0. """
         try:
-            visit0, = self.actor.instData.loadKey('visit0')
+            visitId, = self.actor.instData.loadKey('visit0')
+            visit0 = VisitO(visitId)
+            visit0.stop()  # reloading but dont use actually use it
         except:
             visit0 = None
 
@@ -49,10 +52,13 @@ class VisitManager(object):
 
         return self.visit0
 
-    def resetVisit0(self):
+    def resetVisit0(self, cmd=None):
         """ reset existing visit0. """
+        cmd = self.actor.bcast if cmd is None else cmd
+
         if self.visit0 is not None:
-            self.actor.bcast.warn(f'text="resetting visit0 : {str(self.visit0)}"')
+            self.visit0.reset(cmd)
+            cmd.warn(f'text="resetting visit0 : {str(self.visit0)}"')
 
         self.actor.instData.persistKey('visit0', None)
         self.visit0 = None
@@ -163,8 +169,24 @@ class VisitO(Visit):
         Visit.__init__(self, visit, consumer='fps')
         self.available = dict(fps=True, sps=True, agc=True)
         self.active = dict()
+        self.visitSetBuffer = []
 
         self.setActive('fps')
+
+    @property
+    def visit0InsertedInOpDB(self):
+        try:
+            [visit0] = opDB.fetchone(f'select visit0 from pfs_config where visit0={self.visitId}')
+        except:
+            return False
+
+        return True
+
+    def stop(self):
+        """ stop using that visit. """
+        Visit.stop(self)
+        for consumer in self.available.keys():
+            self.available[consumer] = False
 
     def activeConsumers(self):
         """ Get list of active consumers. """
@@ -183,6 +205,27 @@ class VisitO(Visit):
         self.available[consumer] = False
         self.active[consumer] = True
 
+    def insertFieldSet(self, visit_set_id):
+        """ add that visit_set_id to the buffer and try to insert. """
+        self.visitSetBuffer.append(visit_set_id)
+        self._insertFieldSet()
+
     def releaseVisit(self, consumer):
         """ release visit for that consumer. """
         self.active.pop(consumer, None)
+
+    def _insertFieldSet(self):
+        """ insert into field_set table. """
+        if self.visit0InsertedInOpDB:
+            while self.visitSetBuffer:
+                visit_set_id = self.visitSetBuffer[0]
+                opDB.insert('field_set', visit_set_id=visit_set_id, visit0=self.visitId)
+                self.visitSetBuffer.remove(visit_set_id)
+
+    def reset(self, cmd):
+        """ last chance before resetting. """
+        self._insertFieldSet()
+
+        for visit_set_id in self.visitSetBuffer:
+            cmd.warn(f'text="not inserted: '
+                     f'SQL\INSERT INTO field_set (visit_set_id, visit0) VALUES ({visit_set_id}, {self.visitId})/SQL')
