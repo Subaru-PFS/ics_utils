@@ -10,22 +10,20 @@ def hstTime():
 
 class TimeGetter(object):
     """ generate correct datetime according to site"""
-
     def __init__(self):
         site = getSite()
 
         if site == 'S':
-            self.timedelta = timedelta(hours=10)
+            self.getTime = hstTime
             self.timezone = 'HST'
         else:
-            self.timedelta = timedelta(hours=0)
+            self.getTime = datetime.utcnow
             self.timezone = 'UTC'
 
         self.site = site
 
     def __call__(self, *args, **kwargs):
-        return datetime.utcnow()
+        return self.getTime()
 
     def format(self, timestamp):
-        timestamp = timestamp - self.timedelta
         return f'{timestamp.replace(microsecond=0).isoformat()}.{self.timezone}'
