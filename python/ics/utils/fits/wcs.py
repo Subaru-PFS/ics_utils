@@ -29,4 +29,6 @@ def pixelWcsCards():
                           comment='Coordinate type code'))
         cards.append(dict(name=f'CRVAL{ax_i}', value=0.0,
                           comment='Coordinate value at reference point'))
+        cards.append(dict(name=f'CUNIT{ax_i}', value='pixel',
+                          comment='Coordinate units'))
     return cards
