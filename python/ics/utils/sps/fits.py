@@ -49,10 +49,14 @@ def getSpsSpectroCards(arm):
     disperserName = f'VPH_{arm}_{int(specs["fringe"])}_{int(specs["wavemid"])}nm'
     cards.append(dict(name='DISPAXIS', value=(1 if arm == 'n' else 2),
                       comment='Dispersion axis (along %s)' % ('rows' if arm == 'n' else 'columns')))
-    cards.append(dict(name='DISPRSR', value=disperserName, comment='Disperser name (arm_fringe/mm_centralNm)'))
+    cards.append(dict(name='DISPERSR', value=disperserName, comment='Disperser name (arm_fringe/mm_centralNm)'))
     cards.append(dict(name='WAV-MIN', value=specs['wavemin'], comment='[nm] Blue edge of the bandpass'))
     cards.append(dict(name='WAV-MAX', value=specs['wavemax'], comment='[nm] Red edge of the bandpass'))
     cards.append(dict(name='WAVELEN', value=specs['wavemid'], comment='[nm] Middle of the bandpass'))
+
+    cards.append(dict(name='SLIT', value='PFS', comment='Identifier of entrance slit'))
+    cards.append(dict(name='SLT-LEN', value=1.05, comment='[arcsec] Fiber diameter'))
+    cards.append(dict(name='SLT-WID', value=1.05, comment='[arcsec] Fiber diameter'))
 
     return cards
 
