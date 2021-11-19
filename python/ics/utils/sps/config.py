@@ -1,5 +1,5 @@
-from pfs.utils.spectroIds import SpectroIds
-from pfs.utils.sps.parts import VisCam, NirCam, Shutter, Rda, Fca, Bia, Iis
+from ics.utils.sps.spectroIds import SpectroIds
+from ics.utils.sps.parts import VisCam, NirCam, Shutter, Rda, Fca, Bia, Iis
 
 
 class LightSource(str):
@@ -95,7 +95,7 @@ class SpecModule(SpectroIds):
             Spectrograph module identifier (sm1, sm2, ...).
         config : `spsActor.configParser`
             ConfigParser object from spsActor.
-        spsData : `pfs.utils.instdata.InstData`
+        spsData : `ics.utils.instdata.InstData`
             Sps instrument data object.
 
         Returns
@@ -198,7 +198,7 @@ class SpecModule(SpectroIds):
 
         Returns
         -------
-        cam : `pfs.utils.sps.part.Cam`
+        cam : `ics.utils.sps.part.Cam`
             Cam object.
         """
         if arm not in SpecModule.validArms:
@@ -227,7 +227,7 @@ class SpecModule(SpectroIds):
         -------
         outputLight : `str`
              Output light beam(continuous, timed, none, unknown).
-        shutterSet : list of `pfs.utils.sps.part.Shutter`
+        shutterSet : list of `ics.utils.sps.part.Shutter`
             List of matching shutters.
 
         """
@@ -253,7 +253,7 @@ class SpecModule(SpectroIds):
 
         Returns
         -------
-        requiredShutters : list of `pfs.utils.sps.part.Shutter`
+        requiredShutters : list of `ics.utils.sps.part.Shutter`
             List of required shutters.
         """
         outputLight, shutterSet = self.lightSolver(arm, openShutter=lightBeam)
@@ -307,7 +307,7 @@ class SpecModule(SpectroIds):
 
         Returns
         -------
-        requiredRda : `pfs.utils.sps.part.Rda`
+        requiredRda : `ics.utils.sps.part.Rda`
         """
         if lightBeam and arm == 'r':
             return [self.rda]
@@ -484,7 +484,7 @@ class SpsConfig(object):
 
         Returns
         -------
-        cam : `pfs.utils.sps.part.Cam`
+        cam : `ics.utils.sps.part.Cam`
             Cam object.
         """
         if camName not in SpsConfig.validCams:
@@ -507,7 +507,7 @@ class SpsConfig(object):
         The light source which is feeding the spectrograph module.
         specNum : `int`
             Spectrograph module number (1,2,..).
-        spsData : `pfs.utils.instdata.InstData`
+        spsData : `ics.utils.instdata.InstData`
             Sps instrument data object.
         """
         if lightSource not in SpecModule.lightSources:
