@@ -1,5 +1,6 @@
-import pfs.instdata.io as fileIO
 import re
+
+import pfs.instdata.io as fileIO
 
 reload(fileIO)
 
@@ -8,6 +9,7 @@ class InstConfig(dict):
     def __init__(self, actorName):
 
         super().__init__()
+        self.idDict = None
         self.productName, self.instanceName = self.findProductAndInstance(actorName)
         self.reload()
 
@@ -43,11 +45,53 @@ class InstConfig(dict):
             config = fileIO.loadConfig(self.productName, subDirectory='actors')
             # load per instance config if that make sense.
             config = config[self.instanceName] if self.instanceName is not None else config
+            # if string interpolation is enabled
+            config = self.interpolate(config)
 
         except (FileNotFoundError, KeyError):
             config = dict()
 
         self.update(config)
+
+    def enableStringInterpolation(self, idDict):
+        """Enable string interpolation for config file
+
+        Parameters
+        ----------
+        idDict : `dict`
+           identicator dictionary.
+        """
+
+        self.idDict = idDict
+        self.reload()
+
+    def interpolate(self, config):
+        """ interpolate configuration file with identificator dict
+
+        Parameters
+        ----------
+        config : `dict`
+           Loaded configuration dictionary.
+        Returns
+        -------
+        config: `dict`
+           Interpolated configuration dictionary.
+        """
+
+        # if string interpolation is not enabled just stop there.
+        if self.idDict is None:
+            return config
+
+        for __, field in config.items():
+            interpolated = dict()
+
+            for key, val in field.items():
+                if isinstance(val, str):
+                    interpolated[key] = val.format(**self.idDict)
+
+            field.update(interpolated)
+
+        return config
 
 
 class InstData(object):
@@ -86,8 +130,8 @@ class InstData(object):
 
         Args
         ----
-        keyName : str
-            keyword name.
+        keyName : `str`
+            Keyword name.
         """
         cmd = self.actor.bcast if cmd is None else cmd
         actorName = self.actorName if actorName is None else actorName
@@ -109,8 +153,8 @@ class InstData(object):
 
         Args
         ----
-        keyName : str
-            keyword name.
+        keyName : `str`
+            Keyword name.
         """
         cmd = self.actor.bcast if cmd is None else cmd
         data = dict([(keyName, values)])
@@ -123,8 +167,8 @@ class InstData(object):
 
         Args
         ----
-        keys : dict
-            keyword dictionary.
+        keys : `dict`
+            Keyword dictionary.
         """
         cmd = self.actor.bcast if cmd is None else cmd
 
@@ -137,8 +181,8 @@ class InstData(object):
 
         Args
         ----
-        keys : dict
-            keyword dictionary.
+        keys : `dict`
+            Keyword dictionary.
         """
         cmd = self.actor.bcast if cmd is None else cmd
 
