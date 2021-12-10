@@ -1,10 +1,9 @@
-import os
+import pfs.instdata.io as fileIO
 
-import yaml
+reload(fileIO)
 
 
 class InstData(object):
-    varName = '$PFS_INSTDATA_DIR'
 
     def __init__(self, actor):
         """ Load /save mhs keywords values from/to disk.
@@ -21,27 +20,14 @@ class InstData(object):
         return self.actor.name
 
     @staticmethod
-    def openFile(actorName, mode='r'):
-        """ Open per-actor instdata file. """
-        root = os.path.expandvars(InstData.varName)
-        if root == InstData.varName:
-            raise RuntimeError(f'{InstData.varName} is not defined')
-
-        path = os.path.join(root, 'data/sps', f'{actorName}.yaml')
-        return open(path, mode)
-
-    @staticmethod
-    def loadFile(actorName):
-        """ Load per-actor instdata yaml file. 
-        Returns python dictionary if file exists.
-        """
-        with InstData.openFile(actorName) as dataFile:
-            return yaml.load(dataFile)
+    def loadActorData(actorName):
+        """ Load persisted actor keyword from outside mhs world. """
+        return fileIO.loadData(actorName, subDirectory='actors')
 
     @staticmethod
     def loadPersisted(actorName, keyName):
         """ Load persisted actor keyword from outside mhs world. """
-        return InstData.loadFile(actorName)[keyName]
+        return InstData.loadActorData(actorName)[keyName]
 
     def loadKey(self, keyName, actorName=None, cmd=None):
         """ Load mhs keyword values from disk.
@@ -64,32 +50,7 @@ class InstData(object):
         actorName = self.actorName if actorName is None else actorName
         cmd.inform(f'text="loading keys from instdata"')
 
-        return InstData.loadFile(actorName)
-
-    def _dump(self, data):
-        """ Dump data dictionary to disk. """
-        with self.openFile(self.actorName, mode='w') as dataFile:
-            yaml.dump(data, dataFile)
-
-    def _persist(self, keys, cmd=None):
-        """ Load and update persisted data.
-        Create a new file if it does not exist yet.
-
-        Args
-        ----
-        keys : dict
-            keyword dictionary.
-        """
-        cmd = self.actor.bcast if cmd is None else cmd
-
-        try:
-            data = self.loadKeys(self.actorName)
-        except FileNotFoundError:
-            cmd.warn(f'text="instdata : {self.actorName} file does not exist, creating empty file"')
-            data = dict()
-
-        data.update(keys)
-        self._dump(data)
+        return InstData.loadActorData(actorName)
 
     def persistKey(self, keyName, *values, cmd=None):
         """ Save single mhs keyword values to disk.
@@ -117,3 +78,23 @@ class InstData(object):
 
         self._persist(keys)
         cmd.inform(f'text="dumped keys to instdata"')
+
+    def _persist(self, keys, cmd=None):
+        """ Load and update persisted data.
+        Create a new file if it does not exist yet.
+
+        Args
+        ----
+        keys : dict
+            keyword dictionary.
+        """
+        cmd = self.actor.bcast if cmd is None else cmd
+
+        try:
+            data = self.loadKeys(self.actorName)
+        except FileNotFoundError:
+            cmd.warn(f'text="instdata : {self.actorName} file does not exist, creating empty file"')
+            data = dict()
+
+        data.update(keys)
+        fileIO.dumpData(self.actorName, data, subDirectory='actors')
