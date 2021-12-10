@@ -1,6 +1,53 @@
 import pfs.instdata.io as fileIO
+import re
 
 reload(fileIO)
+
+
+class InstConfig(dict):
+    def __init__(self, actorName):
+
+        super().__init__()
+        self.productName, self.instanceName = self.findProductAndInstance(actorName)
+        self.reload()
+
+    def findProductAndInstance(self, actorName):
+        """Find product name and instance name from actor name.
+
+        Parameters
+        ----------
+        actorName : `str`
+           Actor name.
+        Returns
+        -------
+        productName, instanceName : `str`, str`
+        """
+
+        try:
+            [instanceNumber] = re.findall('[0-9]+', actorName)
+        except ValueError:
+            return actorName, None
+
+        try:
+            [productName, instanceName] = actorName.split('_')
+        except ValueError:
+            [productName, __] = actorName.split(instanceNumber)
+            instanceName = actorName
+
+        return productName, instanceName
+
+    def reload(self):
+        """Reload YAML configuration file and update dictionary."""
+
+        try:
+            config = fileIO.loadConfig(self.productName, subDirectory='actors')
+            # load per instance config if that make sense.
+            config = config[self.instanceName] if self.instanceName is not None else config
+
+        except (FileNotFoundError, KeyError):
+            config = dict()
+
+        self.update(config)
 
 
 class InstData(object):
@@ -14,6 +61,7 @@ class InstData(object):
             a running actor instance.
         """
         self.actor = actor
+        self.config = InstConfig(self.actorName)
 
     @property
     def actorName(self):
@@ -28,6 +76,10 @@ class InstData(object):
     def loadPersisted(actorName, keyName):
         """ Load persisted actor keyword from outside mhs world. """
         return InstData.loadActorData(actorName)[keyName]
+
+    def reloadConfig(self):
+        """ Reload instdata actors configuration file"""
+        return self.config.reload()
 
     def loadKey(self, keyName, actorName=None, cmd=None):
         """ Load mhs keyword values from disk.
