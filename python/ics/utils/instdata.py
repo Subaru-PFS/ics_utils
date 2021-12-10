@@ -2,8 +2,6 @@ import re
 
 import pfs.instdata.io as fileIO
 
-reload(fileIO)
-
 
 class InstConfig(dict):
     def __init__(self, actorName):
@@ -96,7 +94,7 @@ class InstConfig(dict):
 
 class InstData(object):
 
-    def __init__(self, actor):
+    def __init__(self, actor, actorName=None):
         """ Load /save mhs keywords values from/to disk.
 
         Args
@@ -105,7 +103,8 @@ class InstData(object):
             a running actor instance.
         """
         self.actor = actor
-        self.config = InstConfig(self.actorName)
+        actorName = actorName if actorName is not None else self.actorName
+        self.config = InstConfig(actorName)
 
     @property
     def actorName(self):
