@@ -21,7 +21,7 @@ def serverIsUp(host, port, timeout=1):
     return True
 
 
-def waitForTcpServer(host, port, cmd=None, mode='operation', timeout=60):
+def waitForTcpServer(host, port, cmd=None, timeout=60):
     """Wait until server connection can be opened. """
     start = time.time()
     port = int(port)
@@ -30,8 +30,6 @@ def waitForTcpServer(host, port, cmd=None, mode='operation', timeout=60):
         cmd.inform(f'text="waiting for {host}:{port} server..."')
 
     while not serverIsUp(host, port):
-        if mode != 'operation':
-            break
         if time.time() - start > timeout:
             raise TimeoutError('tcp server %s:%d is not running' % (host, port))
 

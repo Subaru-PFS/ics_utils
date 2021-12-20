@@ -1,25 +1,23 @@
 import time
 
-from ics.utils.fsm.FSM import FSMDevice
 from actorcore.QThread import QThread
+from ics.utils.fsm.FSM import FSMDevice
 
 
 class FSMThread(FSMDevice, QThread):
-    def __init__(self, actor, name, events=False, substates=False, doInit=False):
+    def __init__(self, actor, name, events=False, substates=False):
         """This combine QThread and FSMDevice.
 
         :param actor: enuActor.
         :param name: controller name.
         :param events: event list for FSM device.
         :param substates: substates list for FSM device.
-        :param doInit: perform init automatically at startup.
         """
-        self.currCmd = False
-        self.doInit = doInit
+        self.onGoingCmd = False
         self.last = 0
         self.monitor = 60
 
-        QThread.__init__(self, actor, name, timeout=15)
+        QThread.__init__(self, actor, name, timeout=5)
         FSMDevice.__init__(self, actor, name, events=events, substates=substates)
 
     def loadCfg(self, cmd, mode=None):
@@ -88,14 +86,13 @@ class FSMThread(FSMDevice, QThread):
         self.monitor = 0
         self._closeComm(cmd=cmd)
 
-    def start(self, cmd=None, doInit=None, mode=None):
+    def start(self, cmd=None, **kwargs):
         """Start state machine and start QThread.
 
         :param cmd: current command.
         """
-        doInit = self.doInit if doInit is None else doInit
         try:
-            FSMDevice.start(self, cmd=cmd, doInit=doInit, mode=mode)
+            FSMDevice.start(self, cmd=cmd, **kwargs)
             self.generate(cmd=cmd, doFinish=False)
         finally:
             QThread.start(self)

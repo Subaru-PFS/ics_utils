@@ -1,5 +1,6 @@
-import fysom
 from functools import partial
+
+import fysom
 from twisted.internet import reactor
 
 
@@ -111,6 +112,7 @@ class Substates(fysom.Fysom):
 
 class FSMDevice(object):
     ignore = ['fsm', 'event', 'src', 'dst', 'args']
+    forceInit = False
 
     def __init__(self, actor, name, events=False, substates=False):
         # This sets up the connections to/from the hub, the logger, and the twisted reactor.
@@ -162,15 +164,15 @@ class FSMDevice(object):
 
         setattr(self.substates, 'on%s' % state, func)
 
-    def start(self, cmd=None, doInit=False, mode=None):
+    def start(self, cmd=None, **kwargs):
         # start load event which will trigger loadDevice Callback
         cmd = self.actor.bcast if cmd is None else cmd
 
         self.substates.start(cmd)
-        self.substates.load(cmd, mode=mode)
+        self.substates.load(cmd, **kwargs)
 
-        # Trigger initDevice Callback if init is set automatically
-        if doInit:
+        # if init is forced, proceed...
+        if self.forceInit:
             self.substates.init(cmd)
 
     def stop(self, cmd=None):
@@ -192,7 +194,7 @@ class FSMDevice(object):
         except Exception as e:
             cmd.warn('text=%s' % self.actor.strTraceback(e))
 
-    def loadCfg(self, cmd, mode=None):
+    def loadCfg(self, cmd, **kwargs):
         cmd.inform("text='%s configuration correctly Loaded'" % self.name)
 
     def openComm(self, cmd):
