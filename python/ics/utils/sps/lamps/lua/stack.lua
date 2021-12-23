@@ -1,22 +1,22 @@
 #!/usr/bin/env lua
-local outlets = require "outlets" -- don't add `.lua` to your `require` call
+local config = require "config" -- don't add `.lua` to your `require` call
 
 local function getOutlet(key)
-    local names = outlets.lnames
+    local names = config.lnames
     for i = 1, #names do
         if names[i] == key then
-            return outlets.loutlets[i]
+            return config.loutlets[i]
         end
     end
     return false
 end
 
 local function getOutletsConfig()
-    local config = {}
-    for i = 1, #(outlets.lnames) do
-        table.insert(config, string.format('outlet0%d=%s', outlets.loutlets[i], outlets.lnames[i]))
+    local parseConf = {}
+    for i = 1, #(config.lnames) do
+        table.insert(parseConf, string.format('outlet0%d=%s', config.loutlets[i], config.lnames[i]))
     end
-    return table.concat(config, ',')
+    return table.concat(parseConf, ',')
 end
 
 local function toFloat(value)

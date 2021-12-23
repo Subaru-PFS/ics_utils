@@ -1,5 +1,6 @@
 #!/usr/bin/env lua
-local prepare = require "prepare" -- don't add `.lua` to your `require` call
+local config = require "config" -- don't add `.lua` to your `require` call
+local prepare = require "prepare"
 local stack = require "stack"
 local go = require "go"
 
@@ -29,15 +30,13 @@ function formatResponse(status, err)
     return string.format('%s;;%s', strStat, err)
 end
 
-local address = "pdu2-dcb.pfs.sum.subaru.nao.ac.jp"
---local address = "127.0.0.1"
-local port = 9000
+
 -- load namespace
 local socket = require("socket")
 -- create a TCP socket and bind it to the local host, at any port
-local server = assert(socket.bind(address, port))
+local server = assert(socket.bind(config.address, config.port))
 -- find out which port the OS chose for us
-local ip, port = server:getsockname()
+local address, port = server:getsockname()
 -- print a message informing what's up
 print(string.format("Starting tcp server %s %d", address, port))
 

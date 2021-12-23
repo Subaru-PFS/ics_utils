@@ -3,5 +3,4 @@
 export SCRIPT_DIR=/storage
 echo $SCRIPT_DIR
 cd $SCRIPT_DIR
-./dcbserver.lua
-
+./server.lua

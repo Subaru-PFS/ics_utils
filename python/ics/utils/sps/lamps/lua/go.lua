@@ -1,14 +1,14 @@
 #!/usr/bin/env lua
-local outlets = require "outlets" -- don't add `.lua` to your `require` call
+local config = require "config" -- don't add `.lua` to your `require` call
 local uom = require "uom"
 local stack = require "stack"
 local socket = require("socket")
 
 local function getState()
     local states = {}
-    for i = 1, #(outlets.lnames) do
-        bool = uom.relay.outlets[outlets.loutlets[i]].state
-        table.insert(states, string.format('%s=%s', outlets.lnames[i], stack.boolToState(bool)))
+    for i = 1, #(config.lnames) do
+        bool = uom.relay.outlets[config.loutlets[i]].state
+        table.insert(states, string.format('%s=%s', config.lnames[i], stack.boolToState(bool)))
     end
     return table.concat(states, ',')
 end
@@ -31,9 +31,9 @@ local function fireLamps(client)
     local vars = stack.split(line, ' ')
 
     nargs = #vars / 2
-    nlamp = #outlets.lnames
+    nlamp = #config.lnames
     for i = 1, nlamp do
-        uom.relay.outlets[outlets.loutlets[i]].state = false
+        uom.relay.outlets[config.loutlets[i]].state = false
     end
 
     local times = {}
@@ -48,9 +48,9 @@ local function fireLamps(client)
         time = vars[2 * i + 1] * 1.000
 
         for j = 1, nlamp + 1 do
-            if (lamp == outlets.lnames[j]) then
+            if (lamp == config.lnames[j]) then
                 lamps[k] = lamp
-                olets[k] = outlets.loutlets[j]
+                olets[k] = config.loutlets[j]
                 times[k] = time - offset
 
                 k = k + 1
@@ -123,7 +123,7 @@ local function fireLamps(client)
     -- turn all off jic
 
     for i = 1, nlamp do
-        uom.relay.outlets[outlets.loutlets[i]].state = false
+        uom.relay.outlets[config.loutlets[i]].state = false
     end
 
     client:settimeout(10)
