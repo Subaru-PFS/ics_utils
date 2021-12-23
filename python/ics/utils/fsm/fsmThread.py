@@ -4,7 +4,30 @@ from actorcore.QThread import QThread
 from ics.utils.fsm.FSM import FSMDevice
 
 
-class FSMThread(FSMDevice, QThread):
+class LockedThread(QThread):
+    """ There is no safe way to know whether a QThread is actually doing something.
+        Its either waiting from queue.get(timeout=..) or calling a function. this class is basically a workaround. """
+
+    def __init__(self, *args, **kwargs):
+        QThread.__init__(self, *args, **kwargs)
+        self.onGoingCmd = False
+
+    @property
+    def isAvailable(self):
+        return self.onGoingCmd is False
+
+    @property
+    def isLocked(self):
+        return not self.isAvailable
+
+    def lock(self, cmd):
+        self.onGoingCmd = cmd
+
+    def unlock(self):
+        self.onGoingCmd = False
+
+
+class FSMThread(FSMDevice, LockedThread):
     def __init__(self, actor, name, events=False, substates=False):
         """This combine QThread and FSMDevice.
 
@@ -13,11 +36,10 @@ class FSMThread(FSMDevice, QThread):
         :param events: event list for FSM device.
         :param substates: substates list for FSM device.
         """
-        self.onGoingCmd = False
         self.last = 0
         self.monitor = 60
 
-        QThread.__init__(self, actor, name, timeout=5)
+        LockedThread.__init__(self, actor, name, timeout=5)
         FSMDevice.__init__(self, actor, name, events=events, substates=substates)
 
     def loadCfg(self, cmd, mode=None):

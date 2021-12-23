@@ -2,13 +2,14 @@ import time
 from functools import partial
 
 from actorcore.QThread import QThread
+from ics.utils.fsm.fsmThread import LockedThread
 
 
-def getThread(instance):
+def getThread(instance, threadClass=QThread):
     """ Be robust about being called from QThread itself or the ActorCmd.py"""
-    if isinstance(instance, QThread):
+    if isinstance(instance, threadClass):
         return instance
-    elif hasattr(instance, 'controller') and isinstance(instance.controller, QThread):
+    elif hasattr(instance, 'controller') and isinstance(instance.controller, threadClass):
         return instance.controller
     else:
         raise RuntimeError('havent found any available thread to put func on')
@@ -60,30 +61,10 @@ def singleShot(func):
     return wrapper
 
 
-class locking:
-    """ There is no safe way to know whether a QThread is actually doing something.
-        Its either waiting from queue.get(timeout=..) or calling a function. this class is basically a workaround. """
-
-    @staticmethod
-    def isLocked(thread):
-        try:
-            return thread.onGoingCmd
-        except AttributeError:
-            return False
-
-    @staticmethod
-    def lock(thread, cmd):
-        thread.onGoingCmd = cmd
-
-    @staticmethod
-    def unlock(thread):
-        thread.onGoingCmd = False
-
-
 def checkAndPut(func):
     def wrapper(self, cmd, *args, **kwargs):
-        thread = getThread(self)
-        if locking.isLocked(thread):
+        thread = getThread(self, threadClass=LockedThread)
+        if thread.isLocked:
             raise RuntimeWarning(f'{thread.name} is busy')
 
         thread.putMsg(partial(func, self, cmd, *args, **kwargs))
@@ -92,14 +73,15 @@ def checkAndPut(func):
 
 
 def blocking(func):
+    # Note that To be used with FsmThread or at least LockThread or it will blow off.
     @checkAndPut
     @mhsFunc
     def wrapper(self, cmd, *args, **kwargs):
-        thread = getThread(self)
-        locking.lock(thread, cmd)
+        thread = getThread(self, threadClass=LockedThread)
+        thread.lock(cmd)
         try:
             return func(self, cmd, *args, **kwargs)
         finally:
-            locking.unlock(thread)
+            thread.unlock()
 
     return wrapper
