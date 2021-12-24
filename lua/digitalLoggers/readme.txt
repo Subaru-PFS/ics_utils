@@ -1,7 +1,7 @@
 # just a quick installation guide
 
 * copy lua code from ics_config/lua to the digitalLoggers controller
-     `scp -r lua/ admin@pdu2-dcb:/storage/current`
+     `scp -r lua/digitalLoggers/* admin@pdu2-dcb:/storage/current`
 
 * add the following line to /etc/rc.local to start script at startup
     `/storage/current/launch >/tmp/server.log 2>&1 &`

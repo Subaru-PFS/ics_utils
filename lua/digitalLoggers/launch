@@ -2,9 +2,6 @@
 
 export SCRIPT_DIR=/storage/current
 
-# also add a temporization, just making sure the network services are actually started.
-sleep 10
-
 # need to be inside the directory to access local lua libraries.
 echo $SCRIPT_DIR
 cd $SCRIPT_DIR
