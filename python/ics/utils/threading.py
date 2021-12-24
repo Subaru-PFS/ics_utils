@@ -2,16 +2,28 @@ import time
 from functools import partial
 
 from actorcore.QThread import QThread
+from ics.utils.fsm.fsmThread import LockedThread
+
+
+def getThread(instance, threadClass=QThread):
+    """ Be robust about being called from QThread itself or the ActorCmd.py"""
+    if isinstance(instance, threadClass):
+        return instance
+    elif hasattr(instance, 'controller') and isinstance(instance.controller, threadClass):
+        return instance.controller
+    else:
+        raise RuntimeError('havent found any available thread to put func on')
 
 
 def putMsg(func):
     def wrapper(self, cmd, *args, **kwargs):
-        self.putMsg(partial(func, self, cmd, *args, **kwargs))
+        thread = getThread(self)
+        thread.putMsg(partial(func, self, cmd, *args, **kwargs))
 
     return wrapper
 
 
-def putMsg2(func):
+def putAndExit(func):
     def wrapper(self, cmd, *args, **kwargs):
         thr = QThread(self.actor, str(time.time()))
         thr.start()
@@ -21,8 +33,7 @@ def putMsg2(func):
     return wrapper
 
 
-def threaded(func):
-    @putMsg
+def mhsFunc(func):
     def wrapper(self, cmd, *args, **kwargs):
         try:
             return func(self, cmd, *args, **kwargs)
@@ -32,12 +43,45 @@ def threaded(func):
     return wrapper
 
 
+def threaded(func):
+    @putMsg
+    @mhsFunc
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 def singleShot(func):
-    @putMsg2
+    @putAndExit
+    @mhsFunc
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def checkAndPut(func):
     def wrapper(self, cmd, *args, **kwargs):
+        thread = getThread(self, threadClass=LockedThread)
+        if thread.isLocked:
+            raise RuntimeWarning(f'{thread.name} is busy')
+
+        thread.putMsg(partial(func, self, cmd, *args, **kwargs))
+
+    return wrapper
+
+
+def blocking(func):
+    # Note that To be used with FsmThread or at least LockThread or it will blow off.
+    @checkAndPut
+    @mhsFunc
+    def wrapper(self, cmd, *args, **kwargs):
+        thread = getThread(self, threadClass=LockedThread)
+        thread.lock(cmd)
         try:
             return func(self, cmd, *args, **kwargs)
-        except Exception as e:
-            cmd.fail('text=%s' % self.actor.strTraceback(e))
+        finally:
+            thread.unlock()
 
     return wrapper

@@ -1,0 +1,8 @@
+#!/bin/sh
+
+export SCRIPT_DIR=/storage/current
+
+# need to be inside the directory to access local lua libraries.
+echo $SCRIPT_DIR
+cd $SCRIPT_DIR
+./server.lua
