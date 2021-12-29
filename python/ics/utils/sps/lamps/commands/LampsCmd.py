@@ -152,8 +152,8 @@ class LampsCmd(object):
 
     def goNoWait(self, cmd):
         """ Start go command, return immediately. """
-        if self.controller.currCmd:
-            raise RuntimeWarning('%s thread is busy' % self.controller.name)
+        if self.controller.isLocked:
+            raise RuntimeWarning(f'{self.controller.name} thread is locked')
 
         if self.config is None or len(self.config) == 0:
             cmd.fail('text="no lamps are configured to turn on now"')

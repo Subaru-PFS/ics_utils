@@ -268,11 +268,12 @@ class aten(atenPdu):
                 raise UserWarning('sources warmup aborted')
 
     def doAbort(self):
-        """Abort warmup.
-        """
+        """Abort warmup."""
         self.abortWarmup = True
-        while self.currCmd:
-            pass
+
+        # see ics.utils.fsm.fsmThread.LockedThread
+        self.waitForCommandToFinish()
+
         return
 
     def leaveCleanly(self, cmd):

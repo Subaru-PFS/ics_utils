@@ -26,6 +26,12 @@ class LockedThread(QThread):
     def unlock(self):
         self.onGoingCmd = False
 
+    def waitForCommandToFinish(self, maxTime=10):
+        start = time.time()
+        while self.isLocked:
+            if time.time() - start > maxTime:
+                raise RuntimeError(f'{str(self.onGoingCmd)} did not finished after {maxTime} !!!')
+
 
 class FSMThread(FSMDevice, LockedThread):
     def __init__(self, actor, name, events=False, substates=False):
