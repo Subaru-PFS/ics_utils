@@ -170,7 +170,6 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :type lamps: list.
         :raise: Exception with warning message.
         """
-        self.abortWarmup = False
 
         for lamp in lamps:
             if lamp not in self.lampsOn:
@@ -266,6 +265,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         # see ics.utils.fsm.fsmThread.LockedThread
         self.waitForCommandToFinish()
+        self.abortWarmup = False
 
         return
 

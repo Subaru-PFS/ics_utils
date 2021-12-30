@@ -198,7 +198,6 @@ class aten(atenPdu):
         :type lamps: list.
         :raise: Exception with warning message.
         """
-        self.abortWarmup = False
         self.switchOn(cmd, lamps)
 
         toBeWarmed = lamps if lamps else self.lampsOn
@@ -228,7 +227,6 @@ class aten(atenPdu):
         :param cmd: current command.
         :raise: Exception with warning message.
         """
-        self.abortWarmup = False
         lamp, maxSeconds = max(self.config.items(), key=operator.itemgetter(1))
         cmd.inform(f'text="{len(self.config)} channels active, longest {lamp} {maxSeconds} seconds"')
 
@@ -273,6 +271,7 @@ class aten(atenPdu):
 
         # see ics.utils.fsm.fsmThread.LockedThread
         self.waitForCommandToFinish()
+        self.abortWarmup = False
 
         return
 
