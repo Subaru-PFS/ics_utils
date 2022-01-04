@@ -258,13 +258,21 @@ class SpecModule(SpectroIds):
         """
         outputLight, shutterSet = self.lightSolver(arm, openShutter=lightBeam)
 
-        if outputLight == 'continuous':
-            raise NoShutterException(f"cannot control exposure on {arm} arm...")
-        elif outputLight == 'none':
-            if lightBeam:
-                raise RuntimeError(f'light cant reach {arm} arm...')
-        elif outputLight == 'unknown':
-            raise RuntimeError(f'cannot guaranty anything on {arm} arm')
+        try:
+            if outputLight == 'continuous':
+                raise NoShutterException(f"cannot control exposure on {arm} arm...")
+
+            # never been used so far and might be in the end overkill...
+
+            # elif outputLight == 'none':
+            #     if lightBeam:
+            #         raise RuntimeError(f'light cant reach {arm} arm...')
+            # elif outputLight == 'unknown':
+            #     raise RuntimeError(f'cannot guaranty anything on {arm} arm')
+
+        except NoShutterException:
+            # Just assume people knows what they are doing, if there are no shutters return nothing.
+            return []
 
         opeShutters = [shutter for shutter in shutterSet if shutter.operational]
         requiredShutters = opeShutters if lightBeam else opeShutters[-1:]
@@ -287,12 +295,15 @@ class SpecModule(SpectroIds):
         names : `list` of `Part`
             List of required parts.
         """
-        try:
-            deps = self.shutterSet(arm, seqObj.lightBeam)
-        except NoShutterException:
-            deps = self.askAnEngineer(seqObj)
+        # try:
+        #     deps = self.shutterSet(arm, seqObj.lightBeam)
+        # except NoShutterException:
+        #     deps = self.askAnEngineer(seqObj)
 
+        # deps = shutters + rda
+        deps = self.shutterSet(arm, seqObj.lightBeam)
         deps.extend(self.rdaDeps(arm, seqObj.lightBeam))
+
         return deps
 
     def rdaDeps(self, arm, lightBeam):
