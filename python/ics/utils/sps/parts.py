@@ -122,6 +122,7 @@ class Shutter(Part):
     state : `str`
         Current operation state.
     """
+    mask = dict(b=1, r=2)
     knownStates = ['ok', 'broken', 'open', 'closed', 'none']
 
     def __init__(self, specModule, arm, state='none'):
@@ -131,6 +132,10 @@ class Shutter(Part):
     def __str__(self):
         """Part identifier."""
         return f'{self.arm}sh_{self.specModule.specName}'
+
+    @property
+    def bitMask(self):
+        return Shutter.mask[self.arm]
 
     def lightPath(self, inputLight, openShutter=True):
         """Simulate the output light, given the inputLight and the shutter operating state.
