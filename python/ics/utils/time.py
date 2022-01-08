@@ -1,36 +1,179 @@
-from datetime import datetime as pydt
+import time
+from datetime import datetime
 
+from astropy import time as astroTime
 from ics.utils.sps.spectroIds import getSite
 from pytz import timezone
 
+UTC = timezone('UTC')
+HST = timezone('US/Hawaii')
 
-class PfsDatetime(pydt):
-    """ Regular python datetime with tzformat method to get local timezone isoformat."""
-
-    def setLocalTZ(self, timezone):
-        """ Set a local timezone for string conversion. """
-        self.localTZ = timezone
-
-    def tzformat(self, fmt='%Y-%m-%d %H:%M:%S %Z'):
-        """ Get datetime as isoformat + timezone, no microsecond by default."""
-        return self.astimezone(self.localTZ).strftime(fmt)
+site = getSite()
 
 
-class datetime(object):
+def timestamp():
+    """Return the time in seconds since the epoch as a floating point number."""
+    # mostly useful because it's fast and we can easily convert to PfsTime if necessary.
+    return time.time()
+
+
+class Time(astroTime.core.Time):
     """ generate correct datetime according to site"""
-
-    UTC = timezone('UTC')
-    HST = timezone('US/Hawaii')
-    site = getSite()
     localTZ = HST if site == 'S' else UTC
 
     @classmethod
-    def now(cls):
-        datetimeObj = pydt.utcnow()
+    def fromdatetime(cls, localized):
+        """ Convert to PfsTime from localized datetime object.
+
+        Parameters
+        ----------
+        localized : `datetime`
+           localized datetime.
+        Returns
+        -------
+        pfsTime: `Time`
+        """
+        # make sure datetime is actually localized
+        if localized.tzinfo is None:
+            raise RuntimeError(f'{localized} is not localized...')
+
+        # convert to UTC in any case.
+        utcTime = localized.astimezone(UTC)
+        # convert to astroTime.
+        return cls(utcTime)
+
+    @staticmethod
+    def now():
+        """ Return current date and time as pfsTime.
+        Returns
+        -------
+        pfsTime: `Time`
+        """
         # force utc and localize this datetime.
-        pfsDatetime = PfsDatetime(year=datetimeObj.year, month=datetimeObj.month, day=datetimeObj.day,
-                                  hour=datetimeObj.hour, minute=datetimeObj.minute, microsecond=datetimeObj.microsecond,
-                                  tzinfo=datetime.UTC)
+        utcTime = datetime.now(UTC)
+        # use from datetime constructor
+        return Time.fromdatetime(utcTime)
+
+    @staticmethod
+    def fromtimestamp(timestamp):
+        """ Convert to pfsTime from unix timestamp.
+
+         Parameters
+        ----------
+        timestamp : `float`
+           unix timestamp.
+        Returns
+        -------
+        pfsTime: `Time`
+        """
+        # convert to localized datetime
+        localized = convert.datetime_from_timestamp(timestamp)
+        # use from datetime constructor
+        return Time.fromdatetime(localized)
+
+    @staticmethod
+    def fromisoformat(datestr):
+        """ Convert to pfsTime from isoformat datestr.
+
+         Parameters
+        ----------
+        datestr : `str`
+           isoformat datestr.
+        Returns
+        -------
+        pfsTime: `Time`
+        """
+        # convert to localized datetime
+        localized = convert.datetime_from_isoformat(datestr)
         # set local timezone.
-        pfsDatetime.setLocalTZ(cls.localTZ)
-        return pfsDatetime
+        # use from datetime constructor
+        return Time.fromdatetime(localized)
+
+    def to_datetime(self, timezone=None):
+        """ Convert to datetime.
+        Returns
+        -------
+        datetime: `datetime`
+        """
+        # ignore timezone, Time is always referenced to UTC.
+        return astroTime.core.Time.to_datetime(self, timezone=UTC)
+
+    def timestamp(self):
+        """ Convert to unix timestamp.
+        Returns
+        -------
+        timestamp: `float`
+        """
+        return self.to_datetime().timestamp()
+
+    def isoformat(self, microsecond=True):
+        """ Convert to isoformat.
+        Returns
+        -------
+        datestr: `str`
+        """
+        return convert.datetime_to_isoformat(self.to_datetime(), microsecond=microsecond)
+
+
+class convert(object):
+    @staticmethod
+    def datetime_from_isoformat(datestr):
+        """ Convert to localized datetime from isoformat.
+
+         Parameters
+        ----------
+        datestr : `str`
+           isoformat datestr.
+        Returns
+        -------
+        localized: `datetime`
+        """
+        # ugly but could not find any quick workaround.
+        iso, tz = datestr[:-3], datestr[-3:]
+        # convert from iso
+        local = datetime.fromisoformat(iso)
+        # convert to timezone and localize
+        localized = timezone(tz).localize(local)
+        return localized
+
+    @staticmethod
+    def datetime_from_timestamp(timestamp):
+        """ Convert to localized datetime from unix timestamp.
+
+         Parameters
+        ----------
+        timestamp : `float`
+           isoformat datestr.
+        Returns
+        -------
+        localized: `datetime`
+        """
+        # simple conversion, timestamp should always be epoch UTC.
+        return datetime.fromtimestamp(timestamp, tz=UTC)
+
+    @staticmethod
+    def datetime_to_isoformat(datetime, microsecond=True):
+        """ Convert localized datetime to isoformat.
+
+         Parameters
+        ----------
+        localized : `datetime`
+           isoformat datestr.
+        Returns
+        -------
+        pfsTime: `Time`
+        """
+        # make sure datetime is actually localized
+        if datetime.tzinfo is None:
+            raise RuntimeError(f'{datetime} is not localized...')
+
+        fmt = '%Y-%m-%dT%H:%M:%S.%f%Z' if microsecond else '%Y-%m-%dT%H:%M:%S%Z'
+        return datetime.astimezone(Time.localTZ).strftime(fmt)
+
+
+class sleep(object):
+    """ generate correct datetime according to site"""
+
+    @staticmethod
+    def millisec(value=1):
+        time.sleep(value / 1000)
