@@ -1,10 +1,10 @@
-import time
-
+import ics.utils.time as pfsTime
 from actorcore.QThread import QThread
 from ics.utils.fsm.FSM import FSMDevice
 
 
 class LockedThread(QThread):
+    timeLimToFinish = 10
     """ There is no safe way to know whether a QThread is actually doing something.
         Its either waiting from queue.get(timeout=..) or calling a function. this class is basically a workaround. """
 
@@ -26,11 +26,16 @@ class LockedThread(QThread):
     def unlock(self):
         self.onGoingCmd = False
 
-    def waitForCommandToFinish(self, maxTime=10):
-        start = time.time()
+    def waitForCommandToFinish(self, timeLim=None):
+        timeLim = LockedThread.timeLimToFinish if timeLim is None else timeLim
+
+        start = pfsTime.timestamp()
         while self.isLocked:
-            if time.time() - start > maxTime:
-                raise RuntimeError(f'{str(self.onGoingCmd)} did not finished after {maxTime} !!!')
+            if pfsTime.timestamp() - start > timeLim:
+                raise RuntimeError(f'{str(self.onGoingCmd)} did not finished after {timeLim} secs !!!')
+
+            # more important that you think...
+            pfsTime.sleep.millisec()
 
 
 class FSMThread(FSMDevice, LockedThread):
@@ -148,7 +153,7 @@ class FSMThread(FSMDevice, LockedThread):
         if self.states.current in ['LOADED', 'ONLINE']:
             try:
                 self.getStatus(cmd)
-                self.last = time.time()
+                self.last = pfsTime.timestamp()
             finally:
                 self._closeComm(cmd)
 
@@ -163,7 +168,7 @@ class FSMThread(FSMDevice, LockedThread):
         if self.exitASAP:
             raise SystemExit()
 
-        if self.monitor and (time.time() - self.last) > self.monitor:
+        if self.monitor and (pfsTime.timestamp() - self.last) > self.monitor:
             cmd = self.actor.bcast if cmd is None else cmd
             try:
                 self.generate(cmd)
