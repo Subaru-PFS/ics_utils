@@ -7,12 +7,12 @@ from datetime import datetime as dt
 from importlib import reload
 
 import ics.utils.sps.lamps.utils.lampState as lampUtils
-import ics.utils.sps.pdu.simulators.aten as atenSim
+import ics.utils.sps.pdu.simulators.aten as simulator
 from ics.utils.fsm.fsmThread import FSMThread
 from ics.utils.sps.pdu.controllers.aten import aten as atenPdu
 
 reload(lampUtils)
-
+reload(simulator)
 
 class aten(atenPdu):
     # for state machine, not need to temporize before init
@@ -39,7 +39,7 @@ class aten(atenPdu):
 
         self.addStateCB('WARMING', self.warmup)
         self.addStateCB('TRIGGERING', self.doGo)
-        self.sim = atenSim.Sim()
+        self.sim = simulator.Sim()
 
         self.loginTime = 0
         self.abortWarmup = False

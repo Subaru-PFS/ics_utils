@@ -4,12 +4,13 @@ import logging
 import time
 from importlib import reload
 
-import ics.utils.sps.lamps.simulators.digitalLoggers as digitalLogSim
+import ics.utils.sps.lamps.simulators.digitalLoggers as simulator
 import ics.utils.sps.lamps.utils.lampState as lampUtils
 import ics.utils.tcp.bufferedSocket as bufferedSocket
 from ics.utils.fsm.fsmThread import FSMThread
 
 reload(lampUtils)
+reload(simulator)
 
 
 class digitalLoggers(FSMThread, bufferedSocket.EthComm):
@@ -68,7 +69,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         self.mode = self.actor.config.get(self.name, 'mode') if mode is None else mode
         self.lampNames = [l.strip() for l in self.actor.config.get(self.name, 'lampNames').split(',')]
-        self.sim = digitalLogSim.Sim(self.lampNames)
+        self.sim = simulator.Sim(self.lampNames)
 
         bufferedSocket.EthComm.__init__(self,
                                         host=self.actor.config.get(self.name, 'host'),
