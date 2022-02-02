@@ -11,6 +11,11 @@ class InstConfig(dict):
         self.productName, self.instanceName = self.findProductAndInstance(actorName)
         self.reload()
 
+    @property
+    def filepath(self):
+        # retrieve config filepath, can be useful for book-keeping.
+        return fileIO.absFilepath('config', 'actors', self.productName)
+
     def findProductAndInstance(self, actorName):
         """Find product name and instance name from actor name.
 
