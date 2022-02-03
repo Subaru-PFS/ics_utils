@@ -40,8 +40,14 @@ class FsmActor(actorcore.ICC.ICC):
         return key
 
     def reloadConfiguration(self, cmd):
-        """Reload configuration file."""
-        cmd.inform('sections=%08x,%r' % (id(self.config), self.config))
+        """Reload configuration file and generate keywords."""
+        self.instData.config.reload()
+        self.genInstConfigKeys(cmd)
+
+    def genInstConfigKeys(self, cmd):
+        """ Generate config keywords"""
+        # leaving that here for now, not sure it will last long.
+        cmd.inform('sections=%08x,"%r"' % (id(self.config), self.config))
 
     def letsGetReadyToRumble(self):
         """ just startup nicely"""
