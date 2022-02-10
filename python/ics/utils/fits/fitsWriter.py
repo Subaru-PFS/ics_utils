@@ -1,5 +1,6 @@
 import logging
 from multiprocessing import Process, Queue
+from multiprocessing import shared_memory
 import numpy as np
 import os
 import pathlib
@@ -101,6 +102,32 @@ class FitsWriter(object):
             self.reportFailure('CREATE', path=self.currentPath,
                                errorDetails='ERROR writing PHDU: {e}')
 
+    def fetchData(self, rawData):
+        try:
+            name, dtype, shape = rawData
+        except ValueError:
+            return rawData
+
+        shm = shared_memory.SharedMemory(name=name, create=False)
+        _data = np.ndarray(dtype=dtype, shape=shape, buffer=shm.buf)
+        data = _data.copy()
+
+        shm.close()
+        shm.unlink()
+        del shm
+        self.logger.info('')
+
+        return data
+
+    @classmethod
+    def shareData(self, data):
+        shm = shared_memory.SharedMemory(name=None, create=True, size=data.nbytes)
+        dataBuf = np.ndarray(dtype=data.dtype, shape=data.shape, buffer=shm.buf)
+        dataBuf[:] = data[:]
+        shm.close()
+
+        return (shm.name, dataBuf.dtype.name, dataBuf.shape)
+
     def write(self, hduId, extname, data, header):
         """Append an image HDU to our file
 
@@ -118,7 +145,8 @@ class FitsWriter(object):
 
         try:
             compress = None if (data is None or not self.doCompress) else 'RICE_1'
-            self.currentFits.write(data, header=header, extname=extname, compress=compress)
+            realData = self.fetchData(data)
+            self.currentFits.write(realData, header=header, extname=extname, compress=compress)
 
             if data is not None:
                 self.currentFits[-1].write_checksum()
@@ -303,6 +331,7 @@ class FitsBuffer(object):
         extname : `str`
             What to use as the EXTNAME
         """
+        data = FitsWriter.shareData(data)
         self.cmdQ.put(('write', hduId, extname, data, header))
 
     def finishFile(self):
