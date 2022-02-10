@@ -3,7 +3,6 @@ from multiprocessing import Process, Queue
 import numpy as np
 import os
 import pathlib
-import tempfile
 import time
 import threading
 
@@ -79,14 +78,8 @@ class FitsWriter(object):
             self.currentPath = path
             if useTemp:
                 path = pathlib.Path(path)
-                dirname = path.parent
 
-                # (Ab)use tempfile machinery. We actually need to have fitsio do the
-                # file creation, so pretend we have the deprecated mktemp() to get a
-                # filename, by deleting the tempfile we cannot use.
-                tempFile, self.tempPath = tempfile.mkstemp(suffix='.fits', dir=dirname)
-                os.close(tempFile)
-                os.remove(self.tempPath)
+                self.tempPath = pathlib.Path(path.parent, '.'+path.name)
                 self.currentFits = fitsio.FITS(self.tempPath, mode='rw')
             else:
                 self.tempPath = None
