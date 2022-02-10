@@ -10,10 +10,11 @@ import threading
 import fitsio
 
 class FitsWriter(object):
-    def __init__(self, inQ, outQ, doCompress=False):
+    def __init__(self, inQ, outQ, doCompress=True):
         """Buffer FITS file writes.
 
-        Args:
+        Args
+        ----
         inQ : `Queue`
             Queue we receive commands on
         outQ : `Queue`
