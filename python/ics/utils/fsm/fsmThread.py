@@ -39,6 +39,10 @@ class LockedThread(QThread):
 
 
 class FSMThread(FSMDevice, LockedThread):
+    # monitoring config
+    minMonitorPeriod = 2
+    defaultMonitorPeriod = 60
+
     def __init__(self, actor, name, events=False, substates=False):
         """This combine QThread and FSMDevice.
 
@@ -50,8 +54,10 @@ class FSMThread(FSMDevice, LockedThread):
         self.last = 0
         self.monitor = 60
 
-        LockedThread.__init__(self, actor, name, timeout=5)
+        LockedThread.__init__(self, actor, name, timeout=30)
         FSMDevice.__init__(self, actor, name, events=events, substates=substates)
+
+        self.setMonitoring(FSMThread.defaultMonitorPeriod)
 
     def loadCfg(self, cmd, mode=None):
         """Called by FSM loading state callback, loadCfg=>openComm=>testComm.
@@ -153,23 +159,49 @@ class FSMThread(FSMDevice, LockedThread):
         if self.states.current in ['LOADED', 'ONLINE']:
             try:
                 self.getStatus(cmd)
-                self.last = pfsTime.timestamp()
             finally:
+                # just generate keyword at constant rate, no matter if it fails or not.
+                self.last = pfsTime.timestamp()
                 self._closeComm(cmd)
 
         if doFinish:
             cmd.finish()
+
+    def setMonitoring(self, period):
+        """Set controller monitoring period.
+
+        Parameters
+        ----------
+        period : `int`
+           Monitoring period (seconds).
+        """
+
+        def getThreadTimeout(period):
+            # set thread timeout to half the period, or 60 seconds if monitoring is deactivated.
+            if not period:
+                return FSMThread.defaultMonitorPeriod
+            # return greatest divisor.
+            for thp in range(2, period + 1):
+                if period % thp == 0:
+                    return period / thp
+
+        if period and period < FSMThread.minMonitorPeriod:
+            raise ValueError(f'minimum monitoring period is set to {FSMThread.minMonitorPeriod} seconds ...')
+
+        self.timeout = getThreadTimeout(period)
+        self.monitor = period
 
     def handleTimeout(self, cmd=None):
         """Called when thread is idle, generate keywords if monitor>0.
 
         :param cmd: current command.
         """
+        cmd = self.actor.bcast if cmd is None else cmd
+
         if self.exitASAP:
             raise SystemExit()
 
         if self.monitor and (pfsTime.timestamp() - self.last) > self.monitor:
-            cmd = self.actor.bcast if cmd is None else cmd
             try:
                 self.generate(cmd)
             except Exception as e:

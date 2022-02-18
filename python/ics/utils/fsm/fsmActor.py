@@ -120,7 +120,7 @@ class FsmActor(actorcore.ICC.ICC):
         cmd = self.bcast if cmd is None else cmd
 
         if controller not in self.controllers:
-            raise ValueError(f'controller {controller} is not connected' % controller)
+            raise ValueError(f'controller {controller} is not connected')
 
-        self.controllers[controller].monitor = period
+        self.controllers[controller].setMonitoring(period)
         cmd.warn(f'text="setting {controller} loop to {period}"')
