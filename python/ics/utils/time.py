@@ -129,11 +129,11 @@ class convert(object):
         localized: `datetime`
         """
         # ugly but could not find any quick workaround.
-        iso, tz = datestr[:-3], datestr[-3:]
+        iso, tz = (datestr[:-1], UTC) if datestr[-1] == 'Z' else (datestr, HST)
         # convert from iso
         local = datetime.fromisoformat(iso)
         # convert to timezone and localize
-        localized = timezone(tz).localize(local)
+        localized = tz.localize(local)
         return localized
 
     @staticmethod
@@ -167,7 +167,11 @@ class convert(object):
         if datetime.tzinfo is None:
             raise RuntimeError(f'{datetime} is not localized...')
 
-        fmt = '%Y-%m-%dT%H:%M:%S.%f%Z' if microsecond else '%Y-%m-%dT%H:%M:%S%Z'
+        fmt = '%Y-%m-%dT%H:%M:%S'
+        # add microsecond if necessary.
+        fmt = f'{fmt}.%f' if microsecond else fmt
+        # add Z for UTC and nothing for local, eg HST.
+        fmt = f'{fmt}Z' if Time.localTZ == UTC else fmt
         return datetime.astimezone(Time.localTZ).strftime(fmt)
 
 
