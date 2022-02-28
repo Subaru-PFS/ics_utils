@@ -14,6 +14,7 @@ from ics.utils.sps.pdu.controllers.aten import aten as atenPdu
 reload(lampUtils)
 reload(simulator)
 
+
 class aten(atenPdu):
     # for state machine, not need to temporize before init
     forceInit = True
@@ -138,6 +139,29 @@ class aten(atenPdu):
 
             time.sleep(0.05)
 
+    def crudeSwitch(self, cmd, outletName, desiredState):
+        """Crude  outlet switch on/off.
+
+        Parameters
+        ----------
+        cmd :`actorcore.Command.Command`
+            on-going mhs command.
+        outletName : `str`
+            the outlet name, very likely lamp name.
+        desiredState : `str`
+            the outlet desired state (off|on).
+
+        Returns
+        -------
+        ret : `str`
+            returned string from socket IO.
+        """
+        outletNumber = self.powerPorts[outletName]
+        outletStr = f'o{outletNumber}'
+
+        cmd.inform(f'text="switching {desiredState} outlet{outletNumber}:{outletName} now !"')
+        return self.safeOneCommand(f'sw {outletStr} {desiredState} imme', cmd=cmd)
+
     def switchOn(self, cmd, lamps):
         """Switch on lamps
 
@@ -146,13 +170,16 @@ class aten(atenPdu):
         :type lamps: list
         :raise: Exception with warning message.
         """
+        # switch all lamps on first.
         toSwitchOn = [lamp for lamp in lamps if lamp not in self.lampsOn]
         for lamp in toSwitchOn:
-            outlet = self.powerPorts[lamp]
-            self.safeOneCommand('sw o%s on imme' % outlet, cmd=cmd)
+            self.crudeSwitch(cmd, lamp, 'on')
+
+        # spin until the pdu declares all lamps to be on.
         try:
             self.spinAllUntil(cmd, toSwitchOn, 'on')
         except:
+
             try:
                 self.switchOff(cmd, lamps)
                 switchedOff = True
@@ -170,10 +197,7 @@ class aten(atenPdu):
         :type lamps: list
         :raise: Exception with warning message.
         """
-        outlet = self.powerPorts[lamp]
-        cmd.debug(f'text="switching off outlet {outlet}:{lamp} now !"')
-
-        self.safeOneCommand('sw o%s off imme' % outlet, cmd=cmd)
+        self.crudeSwitch(cmd, lamp, 'off')
         self.genKeys(cmd, lamp, 'off', genTimeStamp=True)
 
     def switchOff(self, cmd, lamps):
