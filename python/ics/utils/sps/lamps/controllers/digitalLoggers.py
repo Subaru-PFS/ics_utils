@@ -163,6 +163,27 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         return self.lampNames
 
+    def crudeSwitch(self, cmd, outletName, desiredState):
+        """Crude  outlet switch on/off.
+
+        Parameters
+        ----------
+        cmd :`actorcore.Command.Command`
+            on-going mhs command.
+        outletName : `str`
+            the outlet name, very likely lamp name.
+        desiredState : `str`
+            the outlet desired state (off|on).
+
+        Returns
+        -------
+        lampState : `str`
+            returned string from socket IO.
+        """
+        cmd.inform(f'text="switching {desiredState} {outletName} now !"')
+        lampState = self.sendOneCommand(f'switch {outletName} {desiredState}', cmd=cmd)
+        return lampState
+
     def warmup(self, cmd, lamps, warmingTime=None):
         """warm up lamps list
 
@@ -174,7 +195,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         for lamp in lamps:
             if lamp not in self.lampsOn:
-                lampState = self.sendOneCommand(f'switch {lamp} on', cmd=cmd)
+                lampState = self.crudeSwitch(cmd, lamp, 'on')
                 self.genKeys(cmd, lampState, genTimeStamp=True)
 
         toBeWarmed = lamps if lamps else self.lampsOn
@@ -199,7 +220,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :raise: Exception with warning message.
         """
         for lamp in lamps:
-            lampState = self.sendOneCommand(f'switch {lamp} off', cmd=cmd)
+            lampState = self.crudeSwitch(cmd, lamp, 'off')
             self.genKeys(cmd, lampState, genTimeStamp=True)
 
     def prepare(self, cmd):
@@ -219,6 +240,8 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         timeout = max(self.config.values()) + 2
         timeLim = time.time() + timeout + 10
+
+        # Dont close socket in that case.
         replies = bufferedSocket.EthComm.sendOneCommand(self, cmdStr='go', cmd=cmd).split('\n')
         states = replies[-1]
 
