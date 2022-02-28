@@ -98,7 +98,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :param cmd: current command.
         :raise: Exception if the communication has failed with the controller.
         """
-        self.sendOneCommand('getState', cmd=cmd, doClose=True)
+        self.sendOneCommand('getState', cmd=cmd)
 
     def _init(self, cmd):
         """Instanciate lampState for each lamp and switch them off by safety."""
@@ -118,7 +118,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :param cmd: current command.
         :raise: Exception with warning message.
         """
-        states = self.sendOneCommand('getState', cmd=cmd, doClose=True)
+        states = self.sendOneCommand('getState', cmd=cmd)
         self.genAllKeys(cmd, states)
 
     def genKeys(self, cmd, lampState, genTimeStamp=False):
@@ -149,7 +149,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :param cmd: current command.
         :raise: Exception with warning message.
         """
-        outlets = self.sendOneCommand('getOutletsConfig', cmd=cmd, doClose=True)
+        outlets = self.sendOneCommand('getOutletsConfig', cmd=cmd)
 
         for ret in outlets.split(','):
             cmd.inform(ret)
@@ -174,7 +174,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         for lamp in lamps:
             if lamp not in self.lampsOn:
-                lampState = self.sendOneCommand(f'switch {lamp} on', doClose=True, cmd=cmd)
+                lampState = self.sendOneCommand(f'switch {lamp} on', cmd=cmd)
                 self.genKeys(cmd, lampState, genTimeStamp=True)
 
         toBeWarmed = lamps if lamps else self.lampsOn
@@ -199,7 +199,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :raise: Exception with warning message.
         """
         for lamp in lamps:
-            lampState = self.sendOneCommand(f'switch {lamp} off', doClose=True, cmd=cmd)
+            lampState = self.sendOneCommand(f'switch {lamp} off', cmd=cmd)
             self.genKeys(cmd, lampState, genTimeStamp=True)
 
     def prepare(self, cmd):
@@ -209,7 +209,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :raise: Exception with warning message.
         """
         cmdStr = f'prepare {" ".join(sum([[lamp, str(time)] for lamp, time in self.config.items()], []))}'
-        return self.sendOneCommand(cmdStr, doClose=True, cmd=cmd)
+        return self.sendOneCommand(cmdStr, cmd=cmd)
 
     def doGo(self, cmd):
         """Run the preconfigured illumination sequence.
@@ -274,12 +274,14 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """Send one command and return one response.
 
         :param cmdStr: string to send.
-        :param doClose: If True (the default), the device socket is closed before returning.
+        :param doClose: If True, the device socket is closed before returning.
         :param cmd: current command.
         :return: reply : the single response string, with EOLs stripped.
         :raise: IOError : from any communication errors.
         """
-        reply = bufferedSocket.EthComm.sendOneCommand(self, cmdStr=cmdStr, doClose=doClose, cmd=cmd)
+        # The current lua tcp server is really simple and close the connection after a single command.
+        # I'm not even mentioning threading here ....
+        reply = bufferedSocket.EthComm.sendOneCommand(self, cmdStr=cmdStr, doClose=True, cmd=cmd)
         status, ret = reply.split(';;')
 
         if status != 'OK':
