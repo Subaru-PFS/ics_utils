@@ -69,7 +69,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         self.mode = self.actor.config.get(self.name, 'mode') if mode is None else mode
         self.lampNames = [l.strip() for l in self.actor.config.get(self.name, 'lampNames').split(',')]
-        self.sim = simulator.Sim(self.lampNames)
+        self.sim = simulator.Sim()
 
         bufferedSocket.EthComm.__init__(self,
                                         host=self.actor.config.get(self.name, 'host'),
@@ -129,9 +129,13 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :raise: Exception with warning message.
         """
         lamp, state = [r.strip() for r in lampState.split('=')]
-        self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
 
-        cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
+        # if the outlet is actually a lamp, which is no longer a guarantee.
+        if lamp in self.lampStates.keys():
+            self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
+            cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
+        else:
+            cmd.inform(f'{lamp}={state}')
 
     def genAllKeys(self, cmd, states, genTimeStamp=False):
         """ Generate all lamps keywords.
@@ -157,9 +161,13 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
             # additional check that the pdu config/actor config actually match
             if lamp not in self.lampNames:
-                raise ValueError(f'unknown lamp {lamp}, lampNames={",".join(self.lampNames)}')
+                cmd.warn(f'text="{lamp} not listed in lampConfig, just consider it as an aside outlet..."')
 
             self.outletConfig[outlet] = lamp
+
+        notConfigured = set(self.lampNames) - set(self.outletConfig.values())
+        if notConfigured:
+            raise ValueError(f'lamps : {",".join(notConfigured)} not described in pdu config')
 
         return self.lampNames
 
