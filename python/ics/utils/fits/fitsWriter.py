@@ -102,11 +102,32 @@ class FitsWriter(object):
             self.reportFailure('CREATE', path=self.currentPath,
                                errorDetails='ERROR writing PHDU: {e}')
 
-    def fetchData(self, rawData):
+    @classmethod
+    def fetchData(cls, keys):
+        """Fetch transferred data from shared memory and free buffer.
+
+        If we did not go though a shared memory array, simply return the keys argument.
+        This routine is responsible for freeing the transfer buffer.
+
+        Parameters
+        ----------
+        keys : `tuple`
+             Data descriptor for fetching and reshaping:
+             - shared memory segment name
+             - numpy dtype of data
+             - numpy shape of data
+
+             Matches the tuple returned by the `shareData` method.
+
+        Returns
+        -------
+        array : `np.ndarray`
+            reshaped data array
+        """
         try:
-            name, dtype, shape = rawData
+            name, dtype, shape = keys
         except ValueError:
-            return rawData
+            return keys
 
         shm = shared_memory.SharedMemory(name=name, create=False)
         _data = np.ndarray(dtype=dtype, shape=shape, buffer=shm.buf)
@@ -115,12 +136,23 @@ class FitsWriter(object):
         shm.close()
         shm.unlink()
         del shm
-        self.logger.info('')
 
         return data
 
     @classmethod
-    def shareData(self, data):
+    def shareData(cls, data):
+        """Copy data array to new shared memory buffer and hand off ownership.
+
+        Parameters
+        ----------
+        data : `np.ndarray`
+            A data array to transfer
+
+        Returns
+        -------
+        descriptor : `tuple`
+            See `fetchData`
+        """
         shm = shared_memory.SharedMemory(name=None, create=True, size=data.nbytes)
         dataBuf = np.ndarray(dtype=data.dtype, shape=data.shape, buffer=shm.buf)
         dataBuf[:] = data[:]
@@ -331,7 +363,7 @@ class FitsBuffer(object):
         extname : `str`
             What to use as the EXTNAME
         """
-        data = FitsWriter.shareData(data)
+        data = FitsWriter.shareData(data=data)
         self.cmdQ.put(('write', hduId, extname, data, header))
 
     def finishFile(self):
