@@ -1,4 +1,7 @@
 #!/usr/bin/env lua
+-- recent version of lua require to declare package path.
+package.path = package.path .. ";/storage/current/?.lua;"
+
 local config = require "config" -- don't add `.lua` to your `require` call
 local prepare = require "prepare"
 local stack = require "stack"
