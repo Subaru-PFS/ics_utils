@@ -33,8 +33,8 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         FSMThread.__init__(self, actor, name, events=events, substates=substates)
 
-        self.addStateCB('WARMING', self.warmup)
-        self.addStateCB('TRIGGERING', self.doGo)
+        self.addStateCB('WARMING', self._doWarmup)
+        self.addStateCB('TRIGGERING', self._doGo)
 
         self.monitor = 0
         self.abortWarmup = False
@@ -103,7 +103,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
     def _init(self, cmd):
         """Instanciate lampState for each lamp and switch them off by safety."""
 
-        lampNames = self.getOutletsConfig(cmd)
+        lampNames = self._getOutletsConfig(cmd)
         cmd.inform(f'lampNames={",".join(lampNames)}')
         cmd.inform(f'{self.name}pduModel=digitalLoggers')
 
@@ -134,6 +134,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         if lamp in self.lampStates.keys():
             self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
             cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
+        # crude outlet status otherwise.
         else:
             cmd.inform(f'{lamp}={state}')
 
@@ -146,30 +147,6 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         for lampState in states.split(','):
             self.genKeys(cmd, lampState, genTimeStamp=genTimeStamp)
-
-    def getOutletsConfig(self, cmd):
-        """Get all ports status.
-
-        :param cmd: current command.
-        :raise: Exception with warning message.
-        """
-        outlets = self.sendOneCommand('getOutletsConfig', cmd=cmd)
-
-        for ret in outlets.split(','):
-            cmd.inform(ret)
-            outlet, lamp = [r.strip() for r in ret.split('=')]
-
-            # additional check that the pdu config/actor config actually match
-            if lamp not in self.lampNames:
-                cmd.warn(f'text="{lamp} not listed in lampConfig, just consider it as an aside outlet..."')
-
-            self.outletConfig[outlet] = lamp
-
-        notConfigured = set(self.lampNames) - set(self.outletConfig.values())
-        if notConfigured:
-            raise ValueError(f'lamps : {",".join(notConfigured)} not described in pdu config')
-
-        return self.lampNames
 
     def crudeSwitch(self, cmd, outletName, desiredState):
         """Crude  outlet switch on/off.
@@ -188,36 +165,9 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         lampState : `str`
             returned string from socket IO.
         """
-        cmd.inform(f'text="switching {desiredState} {outletName} now !"')
+        cmd.debug(f'text="switching {desiredState} {outletName} now !"')
         lampState = self.sendOneCommand(f'switch {outletName} {desiredState}', cmd=cmd)
         return lampState
-
-    def warmup(self, cmd, lamps, warmingTime=None):
-        """warm up lamps list
-
-        :param cmd: current command.
-        :param lamps: ['hgar', 'neon']
-        :type lamps: list.
-        :raise: Exception with warning message.
-        """
-
-        for lamp in lamps:
-            if lamp not in self.lampsOn:
-                lampState = self.crudeSwitch(cmd, lamp, 'on')
-                self.genKeys(cmd, lampState, genTimeStamp=True)
-
-        toBeWarmed = lamps if lamps else self.lampsOn
-        if warmingTime is None:
-            warmingTimes = [lampUtils.warmingTime[lamp] for lamp in toBeWarmed]
-        else:
-            warmingTimes = len(toBeWarmed) * [warmingTime]
-
-        remainingTimes = [t - self.lampStates[lamp].elapsed() for t, lamp in zip(warmingTimes, toBeWarmed)]
-        sleepTime = max(remainingTimes) if remainingTimes else 0
-
-        if sleepTime > 0:
-            cmd.inform(f'text="warmingTime:{max(warmingTimes)} now sleeping for {round(sleepTime)} secs'"")
-            self.wait(time.time() + sleepTime)
 
     def switchOff(self, cmd, lamps):
         """Switch off lamp list.
@@ -240,7 +190,46 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         cmdStr = f'prepare {" ".join(sum([[lamp, str(time)] for lamp, time in self.config.items()], []))}'
         return self.sendOneCommand(cmdStr, cmd=cmd)
 
-    def doGo(self, cmd):
+    def _doWarmup(self, cmd, lamps, warmingTime=None):
+        """warm up lamps list
+
+        :param cmd: current command.
+        :param lamps: ['hgar', 'neon']
+        :type lamps: list.
+        :raise: Exception with warning message.
+        """
+
+        def waitUntil(end, ti=0.01):
+            """ Wait until time.time() >end.
+
+            :param end: nb of secs since epoch.
+            """
+            while time.time() < end:
+                time.sleep(ti)
+                self.handleTimeout()
+                if self.abortWarmup:
+                    raise UserWarning('sources warmup aborted')
+
+        for lamp in lamps:
+            # no need to switch on.
+            if lamp not in self.lampsOn:
+                lampState = self.crudeSwitch(cmd, lamp, 'on')
+                self.genKeys(cmd, lampState, genTimeStamp=True)
+
+        toBeWarmed = lamps if lamps else self.lampsOn
+        if warmingTime is None:
+            warmingTimes = [lampUtils.warmingTime[lamp] for lamp in toBeWarmed]
+        else:
+            warmingTimes = len(toBeWarmed) * [warmingTime]
+
+        remainingTimes = [t - self.lampStates[lamp].elapsed() for t, lamp in zip(warmingTimes, toBeWarmed)]
+        sleepTime = max(remainingTimes) if remainingTimes else 0
+
+        if sleepTime > 0:
+            cmd.inform(f'text="warmingTime:{max(warmingTimes)} now sleeping for {round(sleepTime)} secs'"")
+            waitUntil(time.time() + sleepTime)
+
+    def _doGo(self, cmd):
         """Run the preconfigured illumination sequence.
 
         :param cmd: current command.
@@ -276,16 +265,29 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         self.genAllKeys(cmd, states)
         self._closeComm(cmd)
 
-    def wait(self, end, ti=0.01):
-        """ Wait until time.time() >end.
+    def _getOutletsConfig(self, cmd):
+        """Get all ports status.
 
-        :param end: nb of secs since epoch.
+        :param cmd: current command.
+        :raise: Exception with warning message.
         """
-        while time.time() < end:
-            time.sleep(ti)
-            self.handleTimeout()
-            if self.abortWarmup:
-                raise UserWarning('lamps warmup aborted')
+        outlets = self.sendOneCommand('getOutletsConfig', cmd=cmd)
+
+        for ret in outlets.split(','):
+            cmd.inform(ret)
+            outlet, lamp = [r.strip() for r in ret.split('=')]
+
+            # additional check that the pdu config/actor config actually match
+            if lamp not in self.lampNames:
+                cmd.warn(f'text="{lamp} not listed in lampConfig, just consider it as an aside outlet..."')
+
+            self.outletConfig[outlet] = lamp
+
+        notConfigured = set(self.lampNames) - set(self.outletConfig.values())
+        if notConfigured:
+            raise ValueError(f'lamps : {",".join(notConfigured)} not described in pdu config')
+
+        return self.lampNames
 
     def doAbort(self):
         """Abort warmup."""

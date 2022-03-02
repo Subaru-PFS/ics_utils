@@ -38,8 +38,8 @@ class aten(atenPdu):
 
         FSMThread.__init__(self, actor, name, events=events, substates=substates)
 
-        self.addStateCB('WARMING', self.warmup)
-        self.addStateCB('TRIGGERING', self.doGo)
+        self.addStateCB('WARMING', self._doWarmup)
+        self.addStateCB('TRIGGERING', self._doGo)
         self.sim = simulator.Sim()
 
         self.loginTime = 0
@@ -82,25 +82,16 @@ class aten(atenPdu):
         self.getStatus(cmd)
         self.switchOff(cmd, self.lampsOn)
 
-    def getStatus(self, cmd, lampNames=None):
-        """Get and generate iis keywords.
+    def getStatus(self, cmd):
+        """Get and generate lamps keywords.
 
         :param cmd: current command.
         :raise: Exception with warning message.
         """
-        lampNames = self.lampNames if lampNames is None else lampNames
-
-        for lamp in lampNames:
-            state = self.getState(lamp, cmd=cmd)
+        # we are actually iterating on all outlets now.
+        for lamp in self.powerNames.values():
+            state = self._getState(lamp, cmd=cmd)
             self.genKeys(cmd, lamp, state)
-
-    def getState(self, lamp, cmd):
-        """Get current light source state.
-
-        :param cmd: current command.
-        :raise: Exception with warning message.
-        """
-        return self.safeOneCommand('read status o%s simple' % self.powerPorts[lamp], cmd=cmd)
 
     def genKeys(self, cmd, lamp, state, genTimeStamp=False):
         """ Generate one lamp keywords.
@@ -109,35 +100,13 @@ class aten(atenPdu):
         :param lampState: single lamp state
         :raise: Exception with warning message.
         """
-        self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
-        cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
-
-    def spinAllUntil(self, cmd, lamps, desiredState, timeout=5):
-        """Get and generate iis keywords.
-
-        :param cmd: current command.
-        :raise: Exception with warning message.
-        """
-        t0 = time.time()
-        pending = [lamp for lamp in lamps]
-        cmd.debug(f'text="checking on outlet for {",".join(pending)}"')
-
-        while pending:
-            t1 = time.time()
-            for lamp in lamps:
-                if lamp in pending:
-                    state = self.getState(lamp, cmd=cmd)
-                    cmd.debug(f'text="{lamp}={state}"')
-                    if state == desiredState:
-                        if state == 'on':
-                            self.genKeys(cmd, lamp, state, genTimeStamp=True)
-
-                        pending.remove(lamp)
-
-            if t1 - t0 > timeout:
-                raise RuntimeError(f"FAILED to switch {','.join(lamps)} to {desiredState} within {t1 - t0} seconds")
-
-            time.sleep(0.05)
+        # if the outlet is actually a lamp, which is no longer a guarantee.
+        if lamp in self.lampStates.keys():
+            self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
+            cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
+        # crude outlet status otherwise.
+        else:
+            cmd.inform(f'{lamp}={state}')
 
     def crudeSwitch(self, cmd, outletName, desiredState):
         """Crude  outlet switch on/off.
@@ -159,46 +128,8 @@ class aten(atenPdu):
         outletNumber = self.powerPorts[outletName]
         outletStr = f'o{outletNumber}'
 
-        cmd.inform(f'text="switching {desiredState} outlet{outletNumber}:{outletName} now !"')
+        cmd.debug(f'text="switching {desiredState} outlet{outletNumber}:{outletName} now !"')
         return self.safeOneCommand(f'sw {outletStr} {desiredState} imme', cmd=cmd)
-
-    def switchOn(self, cmd, lamps):
-        """Switch on lamps
-
-        :param cmd: current command.
-        :param lamps: lamps to switch off.
-        :type lamps: list
-        :raise: Exception with warning message.
-        """
-        # switch all lamps on first.
-        toSwitchOn = [lamp for lamp in lamps if lamp not in self.lampsOn]
-        for lamp in toSwitchOn:
-            self.crudeSwitch(cmd, lamp, 'on')
-
-        # spin until the pdu declares all lamps to be on.
-        try:
-            self.spinAllUntil(cmd, toSwitchOn, 'on')
-        except:
-
-            try:
-                self.switchOff(cmd, lamps)
-                switchedOff = True
-            except:
-                switchedOff = False
-
-            raise RuntimeError(f"switch lamp {','.join(toSwitchOn)} did not turn on! "
-                               f"all ports switched back off: {switchedOff}")
-
-    def switchOneOff(self, cmd, lamp):
-        """Switch one lamp off
-
-        :param cmd: current command.
-        :param lamps: lamps to switch off.
-        :type lamps: list
-        :raise: Exception with warning message.
-        """
-        self.crudeSwitch(cmd, lamp, 'off')
-        self.genKeys(cmd, lamp, 'off', genTimeStamp=True)
 
     def switchOff(self, cmd, lamps):
         """Switch off lamps
@@ -209,12 +140,20 @@ class aten(atenPdu):
         :raise: Exception with warning message.
         """
         for lamp in lamps:
-            self.switchOneOff(cmd, lamp)
+            self._switchOneOff(cmd, lamp)
 
-        self.spinAllUntil(cmd, lamps, 'off')
+        self._spinAllUntil(cmd, lamps, 'off')
         cmd.debug(f'text="outlets for {lamps} are now effectively turned off..."')
 
-    def warmup(self, cmd, lamps, warmingTime=None):
+    def prepare(self, cmd):
+        """Configure a future illumination sequence.
+
+        :param cmd: current command.
+        :raise: Exception with warning message.
+        """
+        cmd.inform('text="actually nothing to do..."')
+
+    def _doWarmup(self, cmd, lamps, warmingTime=None):
         """warm up lamps list
 
         :param cmd: current command.
@@ -222,7 +161,19 @@ class aten(atenPdu):
         :type lamps: list.
         :raise: Exception with warning message.
         """
-        self.switchOn(cmd, lamps)
+
+        def waitUntil(end, ti=0.01):
+            """ Wait until time.time() >end.
+
+            :param end: nb of secs since epoch.
+            """
+            while time.time() < end:
+                time.sleep(ti)
+                self.handleTimeout()
+                if self.abortWarmup:
+                    raise UserWarning('sources warmup aborted')
+
+        self._switchOn(cmd, lamps)
 
         toBeWarmed = lamps if lamps else self.lampsOn
         if warmingTime is None:
@@ -235,27 +186,22 @@ class aten(atenPdu):
 
         if sleepTime > 0:
             cmd.inform(f'text="warmingTime:{max(warmingTimes)} now sleeping for {round(sleepTime)} secs'"")
-            self.wait(time.time() + sleepTime)
+            waitUntil(time.time() + sleepTime)
 
-    def prepare(self, cmd):
-        """Configure a future illumination sequence.
-
-        :param cmd: current command.
-        :raise: Exception with warning message.
-        """
-        cmd.inform('text="actually nothing to do..."')
-
-    def doGo(self, cmd):
+    def _doGo(self, cmd):
         """Run the preconfigured illumination sequence.
 
         :param cmd: current command.
         :raise: Exception with warning message.
         """
+        # make sure no lamps are turned on in the first place.
+        self.switchOff(cmd, self.lampsOn)
+
         lamp, maxSeconds = max(self.config.items(), key=operator.itemgetter(1))
         cmd.inform(f'text="{len(self.config)} channels active, longest {lamp} {maxSeconds} seconds"')
 
         lampNames = list(self.config.keys())
-        self.switchOn(cmd, lampNames)
+        self._switchOn(cmd, lampNames)
 
         switchOff = [(lamp, self.lampStates[lamp].switchOffTiming(seconds)) for lamp, seconds in self.config.items()]
         switchOff.sort(key=lambda tup: tup[1])
@@ -267,9 +213,86 @@ class aten(atenPdu):
                     self.switchOff(cmd, self.lampsOn)
                     raise UserWarning('sources warmup aborted')
 
-            self.switchOneOff(cmd, lamp)
+            self._switchOneOff(cmd, lamp)
 
-        self.spinAllUntil(cmd, lampNames, 'off')
+        self._spinAllUntil(cmd, lampNames, 'off')
+
+    def _getState(self, lamp, cmd):
+        """Get current light source state.
+
+        :param cmd: current command.
+        :raise: Exception with warning message.
+        """
+        return self.safeOneCommand('read status o%s simple' % self.powerPorts[lamp], cmd=cmd)
+
+    def _switchOn(self, cmd, lamps):
+        """ Switch all given lamps on and spin until pdu declares outlets are on.
+
+        Parameters
+        ----------
+        cmd :`actorcore.Command.Command`
+            on-going mhs command.
+        lampsOn : `list` of `str`
+            list of lamp to switch on.
+        """
+        # dont switch lamp which are already on.
+        toSwitchOn = [lamp for lamp in lamps if lamp not in self.lampsOn]
+
+        # switch all lamps on first.
+        for lamp in toSwitchOn:
+            self.crudeSwitch(cmd, lamp, 'on')
+
+        # spin until the pdu declares all lamps to be on.
+        try:
+            self._spinAllUntil(cmd, toSwitchOn, 'on')
+        except:
+            # something wrong happen so turn everything off.
+            try:
+                self.switchOff(cmd, toSwitchOn)
+                switchedOff = True
+            except:
+                switchedOff = False
+
+            raise RuntimeError(f"switch lamp {','.join(toSwitchOn)} did not turn on! "
+                               f"all ports switched back off: {switchedOff}")
+
+    def _switchOneOff(self, cmd, lamp):
+        """Switch one lamp off
+
+        :param cmd: current command.
+        :param lamps: lamps to switch off.
+        :type lamps: list
+        :raise: Exception with warning message.
+        """
+        self.crudeSwitch(cmd, lamp, 'off')
+        self.genKeys(cmd, lamp, 'off', genTimeStamp=True)
+
+    def _spinAllUntil(self, cmd, lamps, desiredState, timeout=5):
+        """Get and generate iis keywords.
+
+        :param cmd: current command.
+        :raise: Exception with warning message.
+        """
+        t0 = time.time()
+        pending = [lamp for lamp in lamps]
+        cmd.debug(f'text="checking on outlet for {",".join(pending)}"')
+
+        while pending:
+            t1 = time.time()
+            for lamp in lamps:
+                if lamp in pending:
+                    state = self._getState(lamp, cmd=cmd)
+                    cmd.debug(f'text="{lamp}={state}"')
+                    if state == desiredState:
+                        if state == 'on':
+                            self.genKeys(cmd, lamp, state, genTimeStamp=True)
+
+                        pending.remove(lamp)
+
+            if t1 - t0 > timeout:
+                raise RuntimeError(f"FAILED to switch {','.join(lamps)} to {desiredState} within {t1 - t0} seconds")
+
+            time.sleep(0.05)
 
     def authenticate(self, pwd='pfsait'):
         """Log to the telnet server.
@@ -277,17 +300,6 @@ class aten(atenPdu):
         :param pwd: password.
         """
         atenPdu.authenticate(self, pwd=pwd)
-
-    def wait(self, end, ti=0.01):
-        """ Wait until time.time() >end.
-
-        :param end: nb of secs since epoch.
-        """
-        while time.time() < end:
-            time.sleep(ti)
-            self.handleTimeout()
-            if self.abortWarmup:
-                raise UserWarning('sources warmup aborted')
 
     def doAbort(self):
         """Abort warmup."""
