@@ -7,12 +7,12 @@ from threading import Thread
 
 
 class Sim(socket.socket):
+    lampNames = ['halogen', 'neon', 'hgar', 'argon', 'krypton', 'xenon', 'filterwheel']
 
-    def __init__(self, lampNames):
+    def __init__(self):
         """Fake lamps tcp server."""
         socket.socket.__init__(self, socket.AF_INET, socket.SOCK_STREAM)
-        self.lampNames = lampNames
-        self.outlets = dict([(lamp, 'off') for lamp in lampNames])
+        self.outlets = dict([(lamp, 'off') for lamp in Sim.lampNames])
         self.buf = []
         self.config = dict()
         self.doAbort = False

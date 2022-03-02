@@ -33,8 +33,8 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         FSMThread.__init__(self, actor, name, events=events, substates=substates)
 
-        self.addStateCB('WARMING', self.warmup)
-        self.addStateCB('TRIGGERING', self.doGo)
+        self.addStateCB('WARMING', self._doWarmup)
+        self.addStateCB('TRIGGERING', self._doGo)
 
         self.monitor = 0
         self.abortWarmup = False
@@ -69,7 +69,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         self.mode = self.actor.config.get(self.name, 'mode') if mode is None else mode
         self.lampNames = [l.strip() for l in self.actor.config.get(self.name, 'lampNames').split(',')]
-        self.sim = simulator.Sim(self.lampNames)
+        self.sim = simulator.Sim()
 
         bufferedSocket.EthComm.__init__(self,
                                         host=self.actor.config.get(self.name, 'host'),
@@ -98,12 +98,12 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :param cmd: current command.
         :raise: Exception if the communication has failed with the controller.
         """
-        self.sendOneCommand('getState', cmd=cmd, doClose=True)
+        self.sendOneCommand('getState', cmd=cmd)
 
     def _init(self, cmd):
         """Instanciate lampState for each lamp and switch them off by safety."""
 
-        lampNames = self.getOutletsConfig(cmd)
+        lampNames = self._getOutletsConfig(cmd)
         cmd.inform(f'lampNames={",".join(lampNames)}')
         cmd.inform(f'{self.name}pduModel=digitalLoggers')
 
@@ -118,7 +118,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :param cmd: current command.
         :raise: Exception with warning message.
         """
-        states = self.sendOneCommand('getState', cmd=cmd, doClose=True)
+        states = self.sendOneCommand('getState', cmd=cmd)
         self.genAllKeys(cmd, states)
 
     def genKeys(self, cmd, lampState, genTimeStamp=False):
@@ -129,9 +129,14 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :raise: Exception with warning message.
         """
         lamp, state = [r.strip() for r in lampState.split('=')]
-        self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
 
-        cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
+        # if the outlet is actually a lamp, which is no longer a guarantee.
+        if lamp in self.lampStates.keys():
+            self.lampStates[lamp].setState(state, genTimeStamp=genTimeStamp)
+            cmd.inform(f'{lamp}={str(self.lampStates[lamp])}')
+        # crude outlet status otherwise.
+        else:
+            cmd.inform(f'{lamp}={state}')
 
     def genAllKeys(self, cmd, states, genTimeStamp=False):
         """ Generate all lamps keywords.
@@ -143,27 +148,49 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         for lampState in states.split(','):
             self.genKeys(cmd, lampState, genTimeStamp=genTimeStamp)
 
-    def getOutletsConfig(self, cmd):
-        """Get all ports status.
+    def crudeSwitch(self, cmd, outletName, desiredState):
+        """Crude  outlet switch on/off.
+
+        Parameters
+        ----------
+        cmd :`actorcore.Command.Command`
+            on-going mhs command.
+        outletName : `str`
+            the outlet name, very likely lamp name.
+        desiredState : `str`
+            the outlet desired state (off|on).
+
+        Returns
+        -------
+        lampState : `str`
+            returned string from socket IO.
+        """
+        cmd.debug(f'text="switching {desiredState} {outletName} now !"')
+        lampState = self.sendOneCommand(f'switch {outletName} {desiredState}', cmd=cmd)
+        return lampState
+
+    def switchOff(self, cmd, lamps):
+        """Switch off lamp list.
+
+        :param cmd: current command.
+        :param lamps: ['hgar', 'neon']
+        :type lamps: list.
+        :raise: Exception with warning message.
+        """
+        for lamp in lamps:
+            lampState = self.crudeSwitch(cmd, lamp, 'off')
+            self.genKeys(cmd, lampState, genTimeStamp=True)
+
+    def prepare(self, cmd):
+        """Configure a future illumination sequence.
 
         :param cmd: current command.
         :raise: Exception with warning message.
         """
-        outlets = self.sendOneCommand('getOutletsConfig', cmd=cmd, doClose=True)
+        cmdStr = f'prepare {" ".join(sum([[lamp, str(time)] for lamp, time in self.config.items()], []))}'
+        return self.sendOneCommand(cmdStr, cmd=cmd)
 
-        for ret in outlets.split(','):
-            cmd.inform(ret)
-            outlet, lamp = [r.strip() for r in ret.split('=')]
-
-            # additional check that the pdu config/actor config actually match
-            if lamp not in self.lampNames:
-                raise ValueError(f'unknown lamp {lamp}, lampNames={",".join(self.lampNames)}')
-
-            self.outletConfig[outlet] = lamp
-
-        return self.lampNames
-
-    def warmup(self, cmd, lamps, warmingTime=None):
+    def _doWarmup(self, cmd, lamps, warmingTime=None):
         """warm up lamps list
 
         :param cmd: current command.
@@ -172,9 +199,21 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :raise: Exception with warning message.
         """
 
+        def waitUntil(end, ti=0.01):
+            """ Wait until time.time() >end.
+
+            :param end: nb of secs since epoch.
+            """
+            while time.time() < end:
+                time.sleep(ti)
+                self.handleTimeout()
+                if self.abortWarmup:
+                    raise UserWarning('sources warmup aborted')
+
         for lamp in lamps:
+            # no need to switch on.
             if lamp not in self.lampsOn:
-                lampState = self.sendOneCommand(f'switch {lamp} on', doClose=True, cmd=cmd)
+                lampState = self.crudeSwitch(cmd, lamp, 'on')
                 self.genKeys(cmd, lampState, genTimeStamp=True)
 
         toBeWarmed = lamps if lamps else self.lampsOn
@@ -188,30 +227,9 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         if sleepTime > 0:
             cmd.inform(f'text="warmingTime:{max(warmingTimes)} now sleeping for {round(sleepTime)} secs'"")
-            self.wait(time.time() + sleepTime)
+            waitUntil(time.time() + sleepTime)
 
-    def switchOff(self, cmd, lamps):
-        """Switch off lamp list.
-
-        :param cmd: current command.
-        :param lamps: ['hgar', 'neon']
-        :type lamps: list.
-        :raise: Exception with warning message.
-        """
-        for lamp in lamps:
-            lampState = self.sendOneCommand(f'switch {lamp} off', doClose=True, cmd=cmd)
-            self.genKeys(cmd, lampState, genTimeStamp=True)
-
-    def prepare(self, cmd):
-        """Configure a future illumination sequence.
-
-        :param cmd: current command.
-        :raise: Exception with warning message.
-        """
-        cmdStr = f'prepare {" ".join(sum([[lamp, str(time)] for lamp, time in self.config.items()], []))}'
-        return self.sendOneCommand(cmdStr, doClose=True, cmd=cmd)
-
-    def doGo(self, cmd):
+    def _doGo(self, cmd):
         """Run the preconfigured illumination sequence.
 
         :param cmd: current command.
@@ -219,6 +237,8 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         timeout = max(self.config.values()) + 2
         timeLim = time.time() + timeout + 10
+
+        # Dont close socket in that case.
         replies = bufferedSocket.EthComm.sendOneCommand(self, cmdStr='go', cmd=cmd).split('\n')
         states = replies[-1]
 
@@ -245,16 +265,29 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         self.genAllKeys(cmd, states)
         self._closeComm(cmd)
 
-    def wait(self, end, ti=0.01):
-        """ Wait until time.time() >end.
+    def _getOutletsConfig(self, cmd):
+        """Get all ports status.
 
-        :param end: nb of secs since epoch.
+        :param cmd: current command.
+        :raise: Exception with warning message.
         """
-        while time.time() < end:
-            time.sleep(ti)
-            self.handleTimeout()
-            if self.abortWarmup:
-                raise UserWarning('lamps warmup aborted')
+        outlets = self.sendOneCommand('getOutletsConfig', cmd=cmd)
+
+        for ret in outlets.split(','):
+            cmd.inform(ret)
+            outlet, lamp = [r.strip() for r in ret.split('=')]
+
+            # additional check that the pdu config/actor config actually match
+            if lamp not in self.lampNames:
+                cmd.warn(f'text="{lamp} not listed in lampConfig, just consider it as an aside outlet..."')
+
+            self.outletConfig[outlet] = lamp
+
+        notConfigured = set(self.lampNames) - set(self.outletConfig.values())
+        if notConfigured:
+            raise ValueError(f'lamps : {",".join(notConfigured)} not described in pdu config')
+
+        return self.lampNames
 
     def doAbort(self):
         """Abort warmup."""
@@ -274,12 +307,14 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """Send one command and return one response.
 
         :param cmdStr: string to send.
-        :param doClose: If True (the default), the device socket is closed before returning.
+        :param doClose: If True, the device socket is closed before returning.
         :param cmd: current command.
         :return: reply : the single response string, with EOLs stripped.
         :raise: IOError : from any communication errors.
         """
-        reply = bufferedSocket.EthComm.sendOneCommand(self, cmdStr=cmdStr, doClose=doClose, cmd=cmd)
+        # The current lua tcp server is really simple and close the connection after a single command.
+        # I'm not even mentioning threading here ....
+        reply = bufferedSocket.EthComm.sendOneCommand(self, cmdStr=cmdStr, doClose=True, cmd=cmd)
         status, ret = reply.split(';;')
 
         if status != 'OK':
