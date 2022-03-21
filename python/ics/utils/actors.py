@@ -12,16 +12,16 @@ def findProductAndInstance(actorName):
     -------
     productName, instanceName : `str`, str`
     """
-
     try:
         [instanceNumber] = re.findall('[0-9]+', actorName)
-    except ValueError:
-        return actorName, None
+        if '_' in actorName:
+            [productName, instanceName] = actorName.split('_')
+        else:
+            [productName, __] = actorName.split(instanceNumber)
+            instanceName = actorName
 
-    try:
-        [productName, instanceName] = actorName.split('_')
     except ValueError:
-        [productName, __] = actorName.split(instanceNumber)
-        instanceName = actorName
+        # if not any number, productName and instanceName are the same.
+        productName = instanceName = actorName
 
     return productName, instanceName
