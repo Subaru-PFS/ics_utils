@@ -1,23 +1,22 @@
-from ics.utils.sps.spectroIds import SpectroIds
 from ics.utils.sps.parts import VisCam, NirCam, Shutter, Rda, Fca, Bia, Iis
+from ics.utils.sps.spectroIds import SpectroIds
 
 
 class LightSource(str):
-    def __init__(self, name):
-        self.name = name
+    """Class to describe lightSource, fairly minimal for now."""
 
     @property
     def lampsActor(self):
         if self.isDcb:
-            return self.name
-        elif self.name == 'pfi':
+            return self
+        elif self == 'pfi':
             return 'pfilamps'
         else:
-            raise ValueError(f'unknown lampsActor for {self.name}')
+            raise ValueError(f'unknown lampsActor for {self}')
 
     @property
     def isDcb(self):
-        return 'dcb' in self.name
+        return self in ['dcb', 'dcb2']
 
 
 class NoShutterException(Exception):
@@ -180,7 +179,7 @@ class SpecModule(SpectroIds):
         """
         self.bcu = VisCam(self, 'b', bcu)
         self.rcu = VisCam(self, 'r', rcu)
-        self.ncu = NirCam(self,  ncu)
+        self.ncu = NirCam(self, ncu)
         self.bsh = Shutter(self, 'b', bsh)
         self.rsh = Shutter(self, 'r', rsh)
         self.fca = Fca(self, fca)
