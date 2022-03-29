@@ -25,6 +25,19 @@ local function switch(lamp, state)
     return string.format('%s=%s', lamp, stack.boolToState(bool))
 end
 
+local function switchAllLampsOff()
+    -- only the existing lamps
+    local lamps = {"halogen", "neon", "hgar", "argon", "krypton", "xenon"}
+
+    nlamp = #config.lnames
+    for i = 1, nlamp do
+        -- check if that outlet is actually a lamp or not.
+        if stack.hasValue(lamps, config.lnames[i]) then
+            uom.relay.outlets[config.loutlets[i]].state = false
+        end
+    end
+end
+
 local function fireLamps(client)
     local offset = 0.00  -- 200 ms turning-off time
     line = stack.readLamps()
@@ -32,9 +45,9 @@ local function fireLamps(client)
 
     nargs = #vars / 2
     nlamp = #config.lnames
-    for i = 1, nlamp do
-        uom.relay.outlets[config.loutlets[i]].state = false
-    end
+
+    -- switch all lamps off at the beginning of the sequence.
+    switchAllLampsOff()
 
     local times = {}
     local lamps = {}
@@ -120,11 +133,9 @@ local function fireLamps(client)
             break
         end
     end
-    -- turn all off jic
 
-    for i = 1, nlamp do
-        uom.relay.outlets[config.loutlets[i]].state = false
-    end
+    -- switch all lamps off at the end.
+    switchAllLampsOff()
 
     client:settimeout(10)
     return getState()

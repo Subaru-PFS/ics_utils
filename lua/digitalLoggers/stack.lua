@@ -47,6 +47,16 @@ local function split(str, pat)
     return t
 end
 
+local function hasValue (tab, val)
+    for index, value in ipairs(tab) do
+        if value == val then
+            return true
+        end
+    end
+
+    return false
+end
+
 local function writeLamps(line)
     file = io.open("/tmp/lampargs", "w")
     io.output(file)
@@ -97,4 +107,4 @@ local function getNextEvent(state, stop)
     return minTime
 end
 
-return { getOutlet = getOutlet, getOutletsConfig = getOutletsConfig, toFloat = toFloat, split = split, writeLamps = writeLamps, readLamps = readLamps, stateToBool = stateToBool, boolToState = boolToState, getNextEvent = getNextEvent }
+return { getOutlet = getOutlet, getOutletsConfig = getOutletsConfig, toFloat = toFloat, split = split, hasValue = hasValue, writeLamps = writeLamps, readLamps = readLamps, stateToBool = stateToBool, boolToState = boolToState, getNextEvent = getNextEvent }
