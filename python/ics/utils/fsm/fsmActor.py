@@ -41,7 +41,6 @@ class FsmActor(actorcore.ICC.ICC):
 
     def reloadConfiguration(self, cmd):
         """Reload configuration file and generate keywords."""
-        self.instData.config.reload()
         self.genInstConfigKeys(cmd)
 
     def genInstConfigKeys(self, cmd):

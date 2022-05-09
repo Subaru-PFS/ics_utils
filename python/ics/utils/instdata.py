@@ -1,105 +1,100 @@
-import re
+import logging
 
-import pfs.instdata.io as fileIO
+import pfs.instdata.io as instdataIO
+from ics.utils.actors import findProductAndInstance
 
 
 class InstConfig(dict):
-    def __init__(self, actorName):
+    """Inst Config class to handle per-actor config yaml file."""
 
+    def __init__(self, actorName, logLevel=20):
         super().__init__()
-        self.idDict = None
-        self.productName, self.instanceName = self.findProductAndInstance(actorName)
-        self.reload()
+        self.logger = logging.getLogger('config')
+        self.logger.setLevel(logLevel)
+
+        productName, instanceName = findProductAndInstance(actorName)
+        self.idDict = dict(actorName=actorName, productName=productName, instanceName=instanceName)
+        self.load()
+
+    @property
+    def productName(self):
+        return self.idDict['productName']
+
+    @property
+    def instanceName(self):
+        return self.idDict['instanceName']
 
     @property
     def filepath(self):
         # retrieve config filepath, can be useful for book-keeping.
-        return fileIO.absFilepath('config', 'actors', self.productName)
+        return instdataIO.absFilepath('config', 'actors', self.productName)
 
-    def findProductAndInstance(self, actorName):
-        """Find product name and instance name from actor name.
-
-        Parameters
-        ----------
-        actorName : `str`
-           Actor name.
-        Returns
-        -------
-        productName, instanceName : `str`, str`
-        """
-
+    def loadConfig(self):
+        """Load per-actor yaml file."""
         try:
-            [instanceNumber] = re.findall('[0-9]+', actorName)
-        except ValueError:
-            return actorName, None
-
-        try:
-            [productName, instanceName] = actorName.split('_')
-        except ValueError:
-            [productName, __] = actorName.split(instanceNumber)
-            instanceName = actorName
-
-        return productName, instanceName
-
-    def reload(self):
-        """Reload YAML configuration file and update dictionary."""
-
-        try:
-            config = fileIO.loadConfig(self.productName, subDirectory='actors')
-            # load per instance config if that make sense.
-            config = config[self.instanceName] if self.instanceName is not None else config
-            # if string interpolation is enabled
-            config = self.interpolate(config)
+            config = instdataIO.loadConfig(self.productName, subDirectory='actors')
+            # load per instance config, sometimes instanceName==productName, but there is always an instance.
+            config = config[self.instanceName]
 
         except (FileNotFoundError, KeyError):
             config = dict()
 
-        self.update(config)
+        return config
 
-    def enableStringInterpolation(self, idDict):
-        """Enable string interpolation for config file
+    def load(self):
+        """load YAML configuration file and update dictionary."""
 
+        instConfig = self.loadConfig()
+        actorsConfig = instdataIO.loadConfig('actors', subDirectory='actors')
+
+        # try to find similar section in our instConfig file.
+        for section, cfgDict in actorsConfig.items():
+            try:
+                specified = instConfig[section]
+            except KeyError:
+                specified = dict()
+            # update config dictionary with overloaded values.
+            cfgDict.update(specified)
+            instConfig[section] = cfgDict
+
+        self.update(instConfig)
+        # if string interpolation is enabled
+        self.interpolate()
+
+    def reload(self):
+        """Reload configuration dynamically."""
+        self.clear()
+        self.load()
+
+    def interpolate(self, idDict=None):
+        """ interpolate configuration file with identificator dict.
+        Note that the interpolation is done in place.
+        
         Parameters
         ----------
         idDict : `dict`
-           identicator dictionary.
+           optional identifier dictionary.
         """
+        # if provided update current identifier dictionary.
+        if isinstance(idDict, dict):
+            self.idDict.update(idDict)
 
-        self.idDict = idDict
-        self.reload()
-
-    def interpolate(self, config):
-        """ interpolate configuration file with identificator dict
-
-        Parameters
-        ----------
-        config : `dict`
-           Loaded configuration dictionary.
-        Returns
-        -------
-        config: `dict`
-           Interpolated configuration dictionary.
-        """
-
-        # if string interpolation is not enabled just stop there.
-        if self.idDict is None:
-            return config
-
-        for __, field in config.items():
+        for __, field in self.items():
             interpolated = dict()
 
             for key, val in field.items():
                 if isinstance(val, str):
-                    interpolated[key] = val.format(**self.idDict)
+                    try:
+                        interpolated[key] = val.format(**self.idDict)
+                    except KeyError:
+                        self.logger.warning(f'could not interpolate {val} from {self.idDict}')
 
             field.update(interpolated)
-
-        return config
 
 
 class InstData(object):
 
-    def __init__(self, actor, actorName=None):
+    def __init__(self, actor):
         """ Load /save mhs keywords values from/to disk.
 
         Args
@@ -108,8 +103,6 @@ class InstData(object):
             a running actor instance.
         """
         self.actor = actor
-        actorName = actorName if actorName is not None else self.actorName
-        self.config = InstConfig(actorName)
 
     @property
     def actorName(self):
@@ -118,16 +111,12 @@ class InstData(object):
     @staticmethod
     def loadActorData(actorName):
         """ Load persisted actor keyword from outside mhs world. """
-        return fileIO.loadData(actorName, subDirectory='actors')
+        return instdataIO.loadData(actorName, subDirectory='actors')
 
     @staticmethod
     def loadPersisted(actorName, keyName):
         """ Load persisted actor keyword from outside mhs world. """
         return InstData.loadActorData(actorName)[keyName]
-
-    def reloadConfig(self):
-        """ Reload instdata actors configuration file"""
-        return self.config.reload()
 
     def loadKey(self, keyName, actorName=None, cmd=None):
         """ Load mhs keyword values from disk.
@@ -197,4 +186,4 @@ class InstData(object):
             data = dict()
 
         data.update(keys)
-        fileIO.dumpData(self.actorName, data, subDirectory='actors')
+        instdataIO.dumpData(self.actorName, data, subDirectory='actors')
