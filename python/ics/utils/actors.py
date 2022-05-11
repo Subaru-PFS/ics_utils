@@ -12,7 +12,13 @@ def findProductAndInstance(actorName):
     -------
     productName, instanceName : `str`, str`
     """
+    # actors that do not respect that convention.
+    outLaws = ['gen2']
+
     try:
+        if actorName in outLaws:
+            raise ValueError
+
         [instanceNumber] = re.findall('[0-9]+', actorName)
         if '_' in actorName:
             [productName, instanceName] = actorName.split('_')
