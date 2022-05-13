@@ -191,4 +191,16 @@ class PfsField(object):
         self.visit0 = VisitO(int(visitId))
 
     def getPfsDesignId(self):
+        """Return current pfsDesignId."""
         return self.pfsDesign.pfsDesignId
+
+    def getGratingPosition(self):
+        """Return required red grating position from pfsDesign."""
+        if 'r' in self.pfsDesign.arms:
+            position = 'low'
+        elif 'm' in self.pfsDesign.arms:
+            position = 'med'
+        else:
+            position = None
+
+        return position
