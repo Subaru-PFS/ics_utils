@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from ics.utils.opdb import opDB
@@ -75,27 +76,25 @@ class VisitManager(object):
 
     def newVisit(self, consumer, name=None):
         """ Generate new visit. """
-        visit = self._fetchVisitFromGen2()
-        self.activeVisit[visit] = Visit(visitId=visit, consumer=consumer, name=name)
-        return self.activeVisit[visit]
+        visitId = self._fetchVisitFromGen2()
+        self.activeVisit[visitId] = Visit(visitId=visitId, consumer=consumer, name=name)
+        return self.activeVisit[visitId]
 
-    def releaseVisit(self, visit=None, consumer=None):
+    def releaseVisit(self, visitId=None, consumer=None):
         """ Release active visit. """
-        if visit is None:
+        if visitId is None:
             try:
-                [visit] = list(self.activeVisit.keys())
+                [visitId] = list(self.activeVisit.keys())
             except ValueError:
                 raise RuntimeError(f'dont know which visit to release : {",".join(map(str, self.activeVisit.keys()))}')
 
-        if self.activeField and visit == self.activeField.visit0.visitId:
-            self.activeField.visit0.releaseVisit(consumer)
+        # we are still doing slightly weird things for now, so I'll play safe
+        if visitId not in self.activeVisit.keys():
+            logging.warning(f'visitId:{visitId} not in active visits, fine for now...')
             return
 
-        if self.activeVisit[visit] is None:
-            raise VisitNotActiveError()
-
-        self.activeVisit[visit].stop()
-        self.activeVisit.pop(visit, None)
+        self.activeVisit[visitId].stop()
+        self.activeVisit.pop(visitId, None)
 
     def _fetchVisitFromGen2(self, pfsDesignId=None):
         """Actually get a new visit from Gen2.
