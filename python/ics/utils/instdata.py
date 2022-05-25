@@ -85,17 +85,19 @@ class InstConfig(dict):
         if isinstance(idDict, dict):
             self.idDict.update(idDict)
 
-        for __, field in self.items():
-            interpolated = dict()
-
-            for key, val in field.items():
-                if isinstance(val, str):
+        def recursiveInterp(d):
+            """Do a recursive interpolation to deal with nested dictionaries."""
+            for key, val in d.items():
+                if isinstance(val, dict):
+                    recursiveInterp(val)
+                elif isinstance(val, str):
                     try:
-                        interpolated[key] = val.format(**self.idDict)
+                        d[key] = val.format(**self.idDict)
                     except KeyError:
                         self.logger.warning(f'could not interpolate {val} from {self.idDict}')
 
-            field.update(interpolated)
+        # just call it on itself.
+        recursiveInterp(self)
 
 
 class InstData(object):
