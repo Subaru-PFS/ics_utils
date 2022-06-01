@@ -32,7 +32,7 @@ class VisitManager(object):
         """ Reload persisted pfsField. """
         try:
             pfsDesignId, visit0 = self.actor.instData.loadKey('pfsField')
-            pfsDesign = PfsDesign.read(int(pfsDesignId, 16), dirName=self.actor.actorConfig['pfsDesign']['root'])
+            pfsDesign = PfsDesign.read(int(pfsDesignId, 16), dirName=self.actor.actorConfig['pfsDesign']['rootDir'])
             pfsField = PfsField(pfsDesign, visit0)
         except:
             pfsField = None
@@ -43,7 +43,7 @@ class VisitManager(object):
         """ Declare new field, read pfsDesign and get visit0. """
         self.finishField()
 
-        pfsDesign = PfsDesign.read(pfsDesignId, dirName=self.actor.actorConfig['pfsDesign']['root'])
+        pfsDesign = PfsDesign.read(pfsDesignId, dirName=self.actor.actorConfig['pfsDesign']['rootDir'])
         visit0 = self._fetchVisitFromGen2(pfsDesignId=pfsDesign.pfsDesignId)
 
         self.activeField = PfsField(pfsDesign, visit0)
