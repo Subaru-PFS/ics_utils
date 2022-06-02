@@ -165,9 +165,9 @@ class VisitO(Visit):
         """Assess if visit0 is available for a given consumer, not sure its quite robust, but it would do OK for now."""
         if consumer == 'sps':
             table = 'sps_visit'
-        elif consumer == 'fps':
+        elif consumer in ['fps', 'mcs']:
             table = 'mcs_exposure'
-        elif consumer == 'ag':
+        elif consumer in ['ag', 'agc']:
             table = 'agc_exposure'
             # not sure it would actually work so returning True for now..
             return True
