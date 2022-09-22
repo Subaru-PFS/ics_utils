@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import time
 
@@ -16,6 +17,7 @@ class TimeCards(object):
         startTime : `astropy.time.Time`
           The start of the exposure. Must be utc
         """
+        self.logger = logging.getLogger('timecards')
 
         if startTime is None:
             startTime = self._now()
@@ -102,10 +104,16 @@ class TimeCards(object):
                           value=localValue,
                           comment=f"[HMS] {self.timezoneName} {timeComment}"))
 
-        last = timeStamp.sidereal_time('apparent', self.location.lon)
-        cards.append(dict(name=f"LST{suffix}",
-                          value=last.to_string(sep=':', pad=True, precision=3),
-                          comment=f"[HMS] LST {timeComment}"))
+        try:
+            last = timeStamp.sidereal_time('apparent', self.location.lon)
+            cards.append(dict(name=f"LST{suffix}",
+                              value=last.to_string(sep=':', pad=True, precision=3),
+                              comment=f"[HMS] LST {timeComment}"))
+        except Exception as e:
+            self.logger.warning(f'failed to calculate sidereal time: {e}')
+            cards.append(dict(name=f"LST{suffix}",
+                              value='',
+                              comment=f"[HMS] FAILED LST {timeComment}"))
 
         return cards
 
