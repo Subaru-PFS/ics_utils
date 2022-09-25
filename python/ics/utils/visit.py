@@ -215,3 +215,8 @@ class SpsVisit(Visit):
 
     def __init__(self, visitId, name=None):
         Visit.__init__(self, visitId, 'sps', name=name)
+
+    @property
+    def isAvailable(self):
+        """We actually always bump up sps after field acquisition."""
+        return False
