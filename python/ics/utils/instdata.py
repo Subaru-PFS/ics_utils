@@ -26,7 +26,7 @@ class InstConfig(dict):
     @property
     def filepath(self):
         # retrieve config filepath, can be useful for book-keeping.
-        return instdataIO.absFilepath('config', 'actors', self.productName)
+        return instdataIO.toAbsFilepath('config', 'actors', self.productName)
 
     def fetchIds(self, actorName, idDict=None):
         """fetch ids from product and optional id dictionary."""
@@ -116,15 +116,14 @@ class InstData(object):
     def actorName(self):
         return self.actor.name
 
-    @staticmethod
-    def loadActorData(actorName):
-        """ Load persisted actor keyword from outside mhs world. """
-        return instdataIO.loadData(actorName, subDirectory='actors')
+    def getCmd(self, cmd=None):
+        """Return cmd object."""
+        return self.actor.bcast if cmd is None else cmd
 
-    @staticmethod
-    def loadPersisted(actorName, keyName):
-        """ Load persisted actor keyword from outside mhs world. """
-        return InstData.loadActorData(actorName)[keyName]
+    def loadKeys(self, actorName=None, cmd=None):
+        """ Load all keys values from disk. """
+        actorName = self.actorName if actorName is None else actorName
+        return instdataIO.loadYaml('/data', actorName, subDirectory='actors', isRelative=False)
 
     def loadKey(self, keyName, actorName=None, cmd=None):
         """ Load mhs keyword values from disk.
@@ -134,34 +133,8 @@ class InstData(object):
         keyName : `str`
             Keyword name.
         """
-        cmd = self.actor.bcast if cmd is None else cmd
-        actorName = self.actorName if actorName is None else actorName
-        cmd.inform(f'text="loading {keyName} from instdata"')
-
-        return InstData.loadPersisted(actorName, keyName)
-
-    def loadKeys(self, actorName=None, cmd=None):
-        """ Load all keys values from disk. """
-
-        cmd = self.actor.bcast if cmd is None else cmd
-        actorName = self.actorName if actorName is None else actorName
-        cmd.inform(f'text="loading keys from instdata"')
-
-        return InstData.loadActorData(actorName)
-
-    def persistKey(self, keyName, *values, cmd=None):
-        """ Save single mhs keyword values to disk.
-
-        Args
-        ----
-        keyName : `str`
-            Keyword name.
-        """
-        cmd = self.actor.bcast if cmd is None else cmd
-        data = dict([(keyName, values)])
-
-        self._persist(data)
-        cmd.inform(f'text="dumped {keyName} to instdata"')
+        self.getCmd(cmd).inform(f'text="loading {keyName} from {self.actorName} repo"')
+        return self.loadKeys(actorName)[keyName]
 
     def persistKeys(self, keys, cmd=None):
         """ Save mhs keyword dictionary to disk.
@@ -171,10 +144,19 @@ class InstData(object):
         keys : `dict`
             Keyword dictionary.
         """
-        cmd = self.actor.bcast if cmd is None else cmd
-
         self._persist(keys)
-        cmd.inform(f'text="dumped keys to instdata"')
+        self.getCmd(cmd).inform(f'text="dumped {",".join(keys.keys())} to {self.actorName } repo"')
+
+    def persistKey(self, keyName, *values, cmd=None):
+        """ Save single mhs keyword values to disk.
+
+        Args
+        ----
+        keyName : `str`
+            Keyword name.
+        """
+        data = dict([(keyName, values)])
+        self.persistKeys(data, cmd=cmd)
 
     def _persist(self, keys, cmd=None):
         """ Load and update persisted data.
@@ -185,13 +167,11 @@ class InstData(object):
         keys : `dict`
             Keyword dictionary.
         """
-        cmd = self.actor.bcast if cmd is None else cmd
-
         try:
             data = self.loadKeys(self.actorName)
         except FileNotFoundError:
-            cmd.warn(f'text="instdata : {self.actorName} file does not exist, creating empty file"')
+            self.getCmd(cmd).warn(f'text="/data/actors/{self.actorName}.yaml does not exist, creating empty file"')
             data = dict()
 
         data.update(keys)
-        instdataIO.dumpData(self.actorName, data, subDirectory='actors')
+        instdataIO.dumpYaml('/data', self.actorName, data, subDirectory='actors', isRelative=False)
