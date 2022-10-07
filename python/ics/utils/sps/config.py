@@ -108,20 +108,17 @@ class SpecModule(SpectroIds):
             lightSource = None
 
         try:
-            spsModules = [specName.strip() for specName in config.get('sps', 'spsModules').split(',')]
+            spsModules = config['spsModules']
         except:
-            spsModules = [specName for specName in SpecModule.validNames if specName in config.sections()]
+            spsModules = [specName for specName in SpecModule.validNames if specName in config.keys()]
 
         spsModule = specName in spsModules
+        specConfig = config[specName]
         specModule = cls(specName, spsModule=spsModule, lightSource=lightSource)
 
         parts = dict()
         for partName in SpecModule.knownParts:
-            try:
-                state = config.get(specName, partName)
-            except:
-                state = 'none'
-
+            state = specConfig.get(partName, 'none')
             parts[partName] = state
 
         specModule.assign(**parts)
@@ -385,8 +382,9 @@ class SpsConfig(object):
         spsConfig : `SpsConfig`
             SpsConfig object.
         """
-        specNames = [specName for specName in SpecModule.validNames if specName in spsActor.config.sections()]
-        specModules = [SpecModule.fromConfig(specName, spsActor.config, spsActor.instData) for specName in specNames]
+        localConfig = spsActor.actorConfig[spsActor.site]
+        specNames = [specName for specName in SpecModule.validNames if specName in localConfig.keys()]
+        specModules = [SpecModule.fromConfig(specName, localConfig, spsActor.instData) for specName in specNames]
 
         return cls([specModule for specModule in specModules])
 
