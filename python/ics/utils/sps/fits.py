@@ -385,4 +385,12 @@ class SpsFits:
         # allCards.extend(self.headerCards)
         allCards.extend(beamConfigCards)
 
+        keepCards = []
+        for c_i, c in enumerate(allCards):
+            if not isinstance(c['value'], (int, bool, float, str)):
+                cmd.warn(f'text="bad card: {c}')
+            else:
+                keepCards.append(c)
+        allCards = keepCards
+
         return allCards
