@@ -268,13 +268,13 @@ class SpsFits:
 
         allCards = []
         allCards.append(dict(name='COMMENT', value='################################ Beam configuration'))
-        allCards.append(dict(name='W_SBEMDT', value=beamConfigDate, comment='[day] Beam configuration time'))
-        allCards.append(dict(name='W_SFPADT', value=fpaDate, comment='[day] Last FPA move time'))
-        allCards.append(dict(name='W_SHEXDT', value=hexapodDate, comment='[day] Last hexapod move time'))
+        allCards.append(dict(name='W_SBEMDT', value=float(beamConfigDate), comment='[day] Beam configuration time'))
+        allCards.append(dict(name='W_SFPADT', value=float(fpaDate), comment='[day] Last FPA move time'))
+        allCards.append(dict(name='W_SHEXDT', value=float(hexapodDate), comment='[day] Last hexapod move time'))
         if haveDcb:
-            allCards.append(dict(name='W_SDCBDT', value=dcbDate, comment='[day] Last DCB configuration time'))
+            allCards.append(dict(name='W_SDCBDT', value=float(dcbDate), comment='[day] Last DCB configuration time'))
         if isRed:
-            allCards.append(dict(name='W_SGRTDT', value=gratingDate, comment='[day] Last grating move time'))
+            allCards.append(dict(name='W_SGRTDT', value=float(gratingDate), comment='[day] Last grating move time'))
 
         return allCards
 
@@ -334,7 +334,7 @@ class SpsFits:
         detectorId = self.actor.ids.camName
         try:
             xcuModel = self.actor.xcuModel
-            detectorTemp = xcuModel.keyVarDict['visTemps'].getValue()[-1]
+            detectorTemp = xcuModel.keyVarDict['temps'].getValue()[-1]
         except Exception as e:
             cmd.warn(f'text="failed to get detector temp for Subaru: {e}"')
             detectorTemp = 9998.0
@@ -368,7 +368,7 @@ class SpsFits:
         allCards.extend(spectroCards)
         allCards.append(dict(name='COMMENT', value='################################ PFS main IDs'))
 
-        allCards.append(dict(name='W_VISIT', value=visit, comment='PFS exposure visit number'))
+        allCards.append(dict(name='W_VISIT', value=int(visit), comment='PFS exposure visit number'))
         allCards.append(dict(name='W_ARM', value=self.armNum(cmd),
                              comment='Spectrograph arm 1=b, 2=r, 3=n, 4=medRed'))
         allCards.append(dict(name='W_SPMOD', value=self.actor.ids.specNum,
