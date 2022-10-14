@@ -197,8 +197,8 @@ class SpsFits:
             cmd.warn(f'text="unknown lightsource ({lightSource}) for a designId')
             designId = 9999
 
-        cards.append(dict(name='W_PFDSGN', value=designId, comment=f'pfsDesign, from {lightSource}'))
-        cards.append(dict(name='W_LGTSRC', value=lightSource, comment='Light source for this module'))
+        cards.append(dict(name='W_PFDSGN', value=int(designId), comment=f'pfsDesign, from {lightSource}'))
+        cards.append(dict(name='W_LGTSRC', value=str(lightSource), comment='Light source for this module'))
         return cards
 
     def getBeamConfigCards(self, cmd, visit):
@@ -363,7 +363,7 @@ class SpsFits:
                              comment='PFS exposure visit number'))
         allCards.append(dict(name='DETECTOR', value=detectorId, comment='Name of the detector/CCD'))
         allCards.append(dict(name='GAIN', value=gain, comment='[e-/ADU] AD conversion factor'))
-        allCards.append(dict(name='DET-TMP', value=detectorTemp, comment='[K] Detector temperature'))
+        allCards.append(dict(name='DET-TMP', value=float(detectorTemp), comment='[K] Detector temperature'))
         allCards.append(dict(name='DET-ID', value=detId, comment='Subaru/DRP FPA ID for this module and arm'))
         allCards.extend(spectroCards)
         allCards.append(dict(name='COMMENT', value='################################ PFS main IDs'))
