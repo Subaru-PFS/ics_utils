@@ -69,7 +69,11 @@ class VisitManager(object):
 
     def getVisit(self, caller, name=None):
         """Get visit, visit0 if available otherwise new one."""
-        if self.activeField and self.activeField.visitAvailableFor(caller):
+        if self.activeField:
+            if not self.activeField.visitAvailableFor(caller):
+                new = self.newVisit(caller, name=name)
+                self.activeField.reconfigure(caller=caller, newVisit=new)
+
             return self.activeField.getVisit(caller)
 
         return self.newVisit(caller, name=name)
@@ -87,8 +91,6 @@ class VisitManager(object):
 
 
 class Visit(object):
-    isActive = False
-    isFrozen = False
     exposureTable = ""
 
     def __init__(self, visitId, caller='iic', name=None):
@@ -97,7 +99,9 @@ class Visit(object):
         self.name = name
 
         self.isActive = False
+        self.isFrozen = False
         self.iAmDead = False
+
         self.__frameId = 0
         self.idLock = threading.RLock()
 
@@ -106,12 +110,12 @@ class Visit(object):
 
     def __enter__(self):
         """Context manager on with statement."""
-        self.isActive = True
+        self.lock()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
-        self.isActive = False
+        self.unlock()
 
     @property
     def isPopulated(self):
@@ -151,6 +155,14 @@ class Visit(object):
         """Frame id accessor."""
         return self.__frameId
 
+    def lock(self):
+        """Declare visit active."""
+        self.isActive = True
+
+    def unlock(self):
+        """Declare visit inactive."""
+        self.isActive = False
+
     def stop(self):
         """Declare that we should not be used any more."""
         self.iAmDead = True
@@ -179,6 +191,14 @@ class PfsField(object):
         """Is visit available for that caller."""
         return self.getVisit(caller).isAvailable
 
+    def reconfigure(self, caller, newVisit):
+        """visit got bumped up."""
+        self.visit[caller] = newVisit
+
+        # keep sps and ag in sync
+        if caller == 'sps':
+            self.visit['ag'] = AgVisit(newVisit.visitId)
+
     def getPfsDesignId(self):
         """Return current pfsDesignId."""
         return self.pfsDesign.pfsDesignId
@@ -196,11 +216,11 @@ class PfsField(object):
 
 
 class AgVisit(Visit):
-    isFrozen = True
     exposureTable = 'agc_exposure'
 
     def __init__(self, visitId, name=None):
         Visit.__init__(self, visitId, 'ag', name=name)
+        self.isFrozen = True
 
 
 class FpsVisit(Visit):
