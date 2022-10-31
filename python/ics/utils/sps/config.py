@@ -66,6 +66,10 @@ class SpecModule(SpectroIds):
         return list(self.cams.values()) + [self.bsh, self.rsh, self.fca, self.rda, self.bia, self.iis]
 
     @property
+    def opeSubSys(self):
+        return [part for part in self.parts if part.operational]
+
+    @property
     def opeCams(self):
         """Camera considered operational, Will be exposed if no arm/camera are specified."""
         return [cam for cam in self.cams.values() if cam.operational]
@@ -291,35 +295,23 @@ class SpecModule(SpectroIds):
         names : `list` of `Part`
             List of required parts.
         """
-        # try:
-        #     deps = self.shutterSet(arm, seqObj.lightBeam)
-        # except NoShutterException:
-        #     deps = self.askAnEngineer(seqObj)
 
-        # deps = shutters + rda
-        deps = self.shutterSet(arm, seqObj.lightBeam)
-        deps.extend(self.rdaDeps(arm, seqObj.lightBeam))
+        def specDeps(arm, lightBeam):
+            """Return lamps/fca/bia/rda dependencies for a given arm and lightBeam."""
+            # start with the camera itself.
+            deps = [self.cams[arm]]
+            # lock spectrograph subsystems, note that shutters are dealt separately.
+            if lightBeam:
+                deps += [self.lightSource.lampsActor, self.fca, self.bia]
+                deps += [self.rda] if arm in ['r', 'm'] else []
+
+            return deps
+
+        # deps = spectroDeps + shutters
+        deps = specDeps(arm, seqObj.lightBeam)
+        deps.extend(self.shutterSet(arm, seqObj.lightBeam))
 
         return deps
-
-    def rdaDeps(self, arm, lightBeam):
-        """Return rda dependency for a given arm and lightBeam.
-
-        Parameters
-        ----------
-        arm : `str`
-            Spectrograph arm.
-        lightBeam : `bool`
-            Are you measuring photons ?
-
-        Returns
-        -------
-        requiredRda : `ics.utils.sps.part.Rda`
-        """
-        if lightBeam and arm == 'r':
-            return [self.rda]
-        else:
-            return []
 
     def askAnEngineer(self, seqObj):
         """If NoShutterException is raised, check for special cases, timed dcb exposure is one of them.
@@ -347,7 +339,7 @@ class SpecModule(SpectroIds):
         raise
 
 
-class SpsConfig(object):
+class SpsConfig(dict):
     """Placeholder spectrograph system configuration in mhs world.
 
     Attributes
@@ -358,14 +350,14 @@ class SpsConfig(object):
     validCams = [f'{arm}{specNum}' for arm in SpectroIds.validArms.keys() for specNum in SpectroIds.validModules]
 
     def __init__(self, specModules):
-        self.specModules = dict()
+        super().__init__()
         for specModule in specModules:
-            self.specModules[specModule.specName] = specModule
+            self[specModule.specName] = specModule
 
     @property
     def spsModules(self):
         """Spectrograph modules labelled as part of the spectrograph system(sps)"""
-        return dict([(name, module) for name, module in self.specModules.items() if module.spsModule])
+        return dict([(name, module) for name, module in self.items() if module.spsModule])
 
     @classmethod
     def fromConfig(cls, spsActor):
@@ -406,16 +398,16 @@ class SpsConfig(object):
         specNames = spsModel.keyVarDict['specModules'].getValue()
         return cls([SpecModule.fromModel(specName, spsModel) for specName in specNames])
 
-    def identify(self, sm=None, arm=None, cams=None):
-        """Identify which camera(s) to expose from outer product(sm*arm) or cams.
-        If no sm if provided then we're assuming modules labelled as sps.
+    def identify(self, cams=None, arms=None, specNums=None):
+        """Identify which camera(s) to expose from outer product(specNums*arm) or cams.
+        If no specNums if provided then we're assuming modules labelled as sps.
         If no arm if provided then we're assuming all arms.
 
         Parameters
         ----------
-        sm : list of `int`
+        specNums : list of `int`
             List of required spectrograph module number (1,2,..).
-        arm : list of `str`
+        arms : list of `str`
             List of required arm (b,r,n,m)
         cams : list of `str`
             List of camera names.
@@ -426,8 +418,8 @@ class SpsConfig(object):
             List of Cam object.
         """
         if cams is None:
-            specModules = self.selectModules(sm)
-            cams = self.selectArms(specModules, arm)
+            specModules = self.selectModules(specNums)
+            cams = self.selectArms(specModules, arms)
         else:
             cams = [self.selectCam(camName) for camName in cams]
 
@@ -453,9 +445,9 @@ class SpsConfig(object):
 
         for specNum in specNums:
             try:
-                specModules.append(self.specModules[f'sm{specNum}'])
+                specModules.append(self[f'sm{specNum}'])
             except KeyError:
-                raise RuntimeError(f'sm{specNum} is not wired in, specModules={",".join(self.specModules.keys())}')
+                raise RuntimeError(f'sm{specNum} is not wired in, specModules={",".join(self.keys())}')
 
         return specModules
 
@@ -500,7 +492,7 @@ class SpsConfig(object):
 
         arm, specNum = camName[0], int(camName[1])
 
-        [cam] = self.identify(sm=[specNum], arm=[arm])
+        [cam] = self.identify(specNums=[specNum], arms=[arm])
         return cam
 
     def declareLightSource(self, lightSource, specNum=None, spsData=None):
@@ -522,11 +514,14 @@ class SpsConfig(object):
             raise RuntimeError(f'lightSource: {lightSource} must be one of: {",".join(SpecModule.lightSources)}')
 
         specModules = self.selectModules([specNum]) if specNum is not None else self.spsModules.values()
+
         if lightSource != 'pfi':
+            # for now, I declare that to be true, might change in the future.
             if len(specModules) > 1:
                 raise RuntimeError(f'{lightSource} can only be plugged to a single SM')
 
-            toUndeclare = [module for module in self.specModules.values() if module.lightSource == lightSource]
+            # other light source can only plug into one sm, so you need to undeclare it first.
+            toUndeclare = [module for module in self.values() if module.lightSource == lightSource]
             for specModule in toUndeclare:
                 spsData.persistKey(f'{specModule.specName}LightSource', None)
 
