@@ -19,33 +19,33 @@ def stripField(rawCmd, field):
     return rawCmd.replace(m.group(), '').strip()
 
 
-sql_all = "select iic_sequence.sequence_id, sequence_type, name, comments, sps_exposure.pfs_visit_id, cmd_str, " \
+sql_all = "select iic_sequence.iic_sequence_id, sequence_type, name, comments, sps_exposure.pfs_visit_id, cmd_str, " \
           "exp_type, sps_module_id, arm, notes, data_flag, time_exp_start, status_flag, cmd_output " \
           "from sps_exposure inner join visit_set on sps_exposure.pfs_visit_id=visit_set.pfs_visit_id \
-          inner join iic_sequence on visit_set.sequence_id=iic_sequence.sequence_id \
+          inner join iic_sequence on visit_set.iic_sequence_id=iic_sequence.iic_sequence_id \
           inner join sps_visit on sps_exposure.pfs_visit_id=sps_visit.pfs_visit_id \
           inner join sps_camera on sps_exposure.sps_camera_id = sps_camera.sps_camera_id \
-          left outer join iic_sequence_status on iic_sequence.sequence_id=iic_sequence_status.sequence_id \
+          left outer join iic_sequence_status on iic_sequence.iic_sequence_id=iic_sequence_status.iic_sequence_id \
           left outer join sps_annotation on sps_exposure.pfs_visit_id=sps_annotation.pfs_visit_id " \
           "order by sps_exposure.pfs_visit_id desc"
 
-allColumns = ['sequence_id', 'sequence_type', 'name', 'comments', 'pfs_visit_id', 'cmd_str', 'exp_type',
+allColumns = ['iic_sequence_id', 'sequence_type', 'name', 'comments', 'pfs_visit_id', 'cmd_str', 'exp_type',
               'sps_module_id', 'arm', 'notes', 'data_flag', 'time_exp_start', 'status', 'output']
 
-opdbColumns = ['sequence_id', 'sequence_type', 'name', 'comments', 'visitStart', 'visitEnd', 'cmd_str', 'startdate',
+opdbColumns = ['iic_sequence_id', 'sequence_type', 'name', 'comments', 'visitStart', 'visitEnd', 'cmd_str', 'startdate',
                'status', 'output']
 
 
 def buildSequenceSummary(allRows):
     logs = []
-    for (sequence_id, sequence_type, name, comments, cmd_str, status, output), visit_set in allRows.groupby(
-            ['sequence_id', 'sequence_type', 'name', 'comments', 'cmd_str', 'status', 'output']):
+    for (iic_sequence_id, sequence_type, name, comments, cmd_str, status, output), visit_set in allRows.groupby(
+            ['iic_sequence_id', 'sequence_type', 'name', 'comments', 'cmd_str', 'status', 'output']):
         status = 'OK' if status in [0, 3] else 'FAILED'
-        logs.append((sequence_id, sequence_type, name, comments, visit_set.pfs_visit_id.min(),
+        logs.append((iic_sequence_id, sequence_type, name, comments, visit_set.pfs_visit_id.min(),
                      visit_set.pfs_visit_id.max(), stripField(stripField(cmd_str, 'comments='), 'name='),
                      visit_set.time_exp_start.min(), status, output))
 
-    return pd.DataFrame(logs, columns=opdbColumns).set_index('sequence_id').sort_index(ascending=False)
+    return pd.DataFrame(logs, columns=opdbColumns).set_index('iic_sequence_id').sort_index(ascending=False)
 
 
 def spsLogbook(directory):
