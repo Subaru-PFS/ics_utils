@@ -376,7 +376,7 @@ class SpsConfig(dict):
         """
         localConfig = spsActor.actorConfig[spsActor.site]
         specNames = [specName for specName in SpecModule.validNames if specName in localConfig.keys()]
-        specModules = [SpecModule.fromConfig(specName, localConfig, spsActor.instData) for specName in specNames]
+        specModules = [SpecModule.fromConfig(specName, localConfig, spsActor.actorData) for specName in specNames]
 
         return cls([specModule for specModule in specModules])
 

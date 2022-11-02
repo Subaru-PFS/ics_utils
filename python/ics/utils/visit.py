@@ -30,7 +30,7 @@ class VisitManager(object):
     def reloadField(self):
         """Reload persisted pfsField."""
         try:
-            pfsDesignId, visit0 = self.actor.instData.loadKey('pfsField')
+            pfsDesignId, visit0 = self.actor.actorData.loadKey('pfsField')
             pfsDesign = PfsDesign.read(int(pfsDesignId, 16), dirName=self.actor.actorConfig['pfsDesign']['rootDir'])
             pfsField = PfsField(pfsDesign, visit0)
         except:
@@ -47,7 +47,7 @@ class VisitManager(object):
 
         self.activeField = PfsField(pfsDesign, visit0)
         # persisting pfsField
-        self.actor.instData.persistKey('pfsField', '0x%016x' % pfsDesign.pfsDesignId, visit0)
+        self.actor.actorData.persistKey('pfsField', '0x%016x' % pfsDesign.pfsDesignId, visit0)
 
         return pfsDesign, self.activeField.visit0
 
@@ -61,7 +61,7 @@ class VisitManager(object):
     def finishField(self):
         """Finish declaredCurrentPfsDesign."""
         self.activeField = None
-        self.actor.instData.persistKey('pfsField', None, None)
+        self.actor.actorData.persistKey('pfsField', None, None)
 
     def getCurrentDesignId(self):
         """Get declaredCurrentPfsDesignId."""
