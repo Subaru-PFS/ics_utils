@@ -6,7 +6,6 @@ import logging
 
 import actorcore.ICC
 from ics.utils.fsm.FSM import MetaStates
-from ics.utils.instdata import InstData
 from twisted.internet import reactor
 
 
@@ -20,7 +19,6 @@ class FsmActor(actorcore.ICC.ICC):
                                    configFile=configFile,
                                    **kwargs)
 
-        self.instData = InstData(self)
         self.logger.setLevel(logLevel)
 
         self.ignoreControllers = []
