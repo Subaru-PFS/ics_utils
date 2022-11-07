@@ -8,6 +8,9 @@
 * copy lua code from ics_config/lua to the digitalLoggers controller
      `scp -r lua/digitalLoggers/* pfs@pdu2-dcb:/storage/current`
 
+* create a symlink config.lua pointing to the dedicated config file.
+    `ln -s config_dcb.lua config.lua`
+
 * add the following line to /etc/rc.local to start script at startup
     `/storage/current/launch >/tmp/server.log 2>&1 &`
 
