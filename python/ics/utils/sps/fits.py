@@ -121,6 +121,19 @@ class SpsFits:
         armNum = self.armNum(cmd)
         return arms[armNum]
 
+    def findCard(self, cards, cardName):
+        for c_i, c in enumerate(cards):
+            if c.name == cardName:
+                return c_i
+        return -1
+
+    def removeCard(self, cards, cardName):
+        idx = findCard(cards, cardName)
+        if idx >= 0:
+            cards.pop(idx)
+
+        return cards
+
     def getLightSource(self, cmd):
         """Return our lightsource (pfi, sunss, dcb, dcb2). """
 
@@ -179,6 +192,7 @@ class SpsFits:
         lightSource = self.getLightSource(cmd)
         if lightSource == 'sunss':
             designId = 0xdeadbeef
+            objectCard = 'SuNSS'
         elif lightSource == 'pfi':
             try:
                 model = self.actor.models['iic'].keyVarDict
@@ -186,6 +200,8 @@ class SpsFits:
             except Exception as e:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
                 designId = 9998
+            # Let the gen2 keyword stay
+            objectCard = None
         elif lightSource in {'dcb', 'dcb2'}:
             try:
                 model = self.actor.models[lightSource].keyVarDict
@@ -193,10 +209,14 @@ class SpsFits:
             except Exception as e:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
                 designId = 9998
+            objectCard = f'{lightSource}'
         else:
             cmd.warn(f'text="unknown lightsource ({lightSource}) for a designId')
             designId = 9999
+            objectCard = 'unknown'
 
+        if objectCard is not None:
+            cards.append(dict(name='OBJECT', value=objectCard, comment='Internal id for this light source'))
         cards.append(dict(name='W_PFDSGN', value=int(designId), comment=f'pfsDesign, from {lightSource}'))
         cards.append(dict(name='W_LGTSRC', value=str(lightSource), comment='Light source for this module'))
         return cards
@@ -354,6 +374,10 @@ class SpsFits:
         designCards = self.getPfsDesignCards(cmd)
         endCards = self.getEndInstCards(cmd)
         mhsCards = self.getMhsCards(cmd)
+
+        # We might be overriding the Subaru/gen2 OBJECT.
+        if self.findCard(designCards, 'OBJECT') >= 0:
+            self.removeCard(mhsCards, 'OBJECT')
 
         allCards = []
         allCards.append(dict(name='DATA-TYP', value=exptype, comment='Subaru-style exposure type'))
