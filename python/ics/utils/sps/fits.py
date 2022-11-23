@@ -128,7 +128,7 @@ class SpsFits:
         return -1
 
     def removeCard(self, cards, cardName):
-        idx = findCard(cards, cardName)
+        idx = self.findCard(cards, cardName)
         if idx >= 0:
             cards.pop(idx)
 
