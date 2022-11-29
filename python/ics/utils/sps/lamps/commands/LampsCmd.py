@@ -129,11 +129,6 @@ class LampsCmd(object):
             self.config[lamp] = int(cmdKeys[lamp].values[0])
 
         self.controller.prepare(cmd)
-        # OK, this is _really_ skeevy. But we need header cards, to be grabbed at
-        #   the start of integration.
-        for lamp in self.lampNames:
-            state = 'on' if self.config.get(lamp, 0) > 0 else 'off'
-            cmd.inform(f'{lamp}={state},-1')
 
         cmd.finish('text="will turn on: %s"' % self.lampString)
 
