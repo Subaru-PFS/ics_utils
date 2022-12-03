@@ -302,8 +302,16 @@ class SpecModule(SpectroIds):
             deps = [self.cams[arm]]
             # lock spectrograph subsystems, note that shutters are dealt separately.
             if lightBeam:
-                deps += [self.lightSource.lampsActor, self.fca, self.bia]
+                deps += [self.fca, self.bia]
                 deps += [self.rda] if arm in ['r', 'm'] else []
+
+                # ignoring lampsActor for SuNSS.
+                try:
+                    lampsActor = [self.lightSource.lampsActor]
+                except ValueError:
+                    lampsActor = []
+
+                deps += lampsActor
 
             return deps
 
