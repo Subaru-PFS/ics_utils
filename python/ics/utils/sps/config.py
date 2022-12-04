@@ -3,6 +3,7 @@ from ics.utils.sps.spectroIds import SpectroIds
 
 
 class LightSource(str):
+    validNames = ['dcb', 'dcb2', 'sunss', 'pfi']
     """Class to describe lightSource, fairly minimal for now."""
 
     @property
@@ -47,7 +48,6 @@ class SpecModule(SpectroIds):
     """
     knownParts = ['bcu', 'rcu', 'ncu', 'bsh', 'rsh', 'fca', 'rda', 'bia', 'iis']
     armToFpa = dict(b='b', m='r', r='r', n='n')
-    lightSources = ['dcb', 'dcb2', 'sunss', 'pfi']
     validNames = [f'sm{specNum}' for specNum in SpectroIds.validModules]
 
     def __init__(self, specName, spsModule=True, lightSource=None):
@@ -306,10 +306,7 @@ class SpecModule(SpectroIds):
                 deps += [self.rda] if arm in ['r', 'm'] else []
 
                 # ignoring lampsActor for SuNSS.
-                try:
-                    lampsActor = [self.lightSource.lampsActor]
-                except ValueError:
-                    lampsActor = []
+                lampsActor = [] if self.lightSource == 'sunss' else [self.lightSource.lampsActor]
 
                 deps += lampsActor
 
@@ -518,8 +515,8 @@ class SpsConfig(dict):
         spsData : `ics.utils.instdata.InstData`
             Sps instrument data object.
         """
-        if lightSource not in SpecModule.lightSources:
-            raise RuntimeError(f'lightSource: {lightSource} must be one of: {",".join(SpecModule.lightSources)}')
+        if lightSource not in LightSource.validNames:
+            raise RuntimeError(f'lightSource: {lightSource} must be one of: {",".join(LightSource.validNames)}')
 
         specModules = self.selectModules([specNum]) if specNum is not None else self.spsModules.values()
 
