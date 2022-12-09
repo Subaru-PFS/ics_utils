@@ -1,7 +1,9 @@
+import glob
+import os
 import threading
 
 from ics.utils.opdb import opDB
-from pfs.datamodel import PfsDesign
+from pfs.datamodel import PfsDesign, PfsConfig
 from pfscore.gen2 import fetchVisitFromGen2
 
 
@@ -177,6 +179,7 @@ class PfsField(object):
 
     def __init__(self, pfsDesign, visit0):
         self.pfsDesign = pfsDesign
+        self.pfsConfig = None
         self.visit0 = visit0
 
         self.visit = dict(ag=AgVisit(visit0, name='visit0'),
@@ -213,6 +216,17 @@ class PfsField(object):
             position = None
 
         return position
+
+    def loadPfsConfig(self):
+        """Load pfsConfig file after fps cobras convergence."""
+        [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.getPfsDesignId(),
+                                                                                               self.visit0))
+        dirName, _ = os.path.split(pfsConfigPath)
+        rootDir, _ = os.path.split(dirName)
+        _, dateDir = os.path.split(rootDir)
+
+        self.pfsConfig = PfsConfig.read(self.getPfsDesignId(), self.visit0, dirName=dirName)
+        return self.pfsConfig, dateDir
 
 
 class AgVisit(Visit):
