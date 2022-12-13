@@ -27,14 +27,13 @@ class VisitManager(object):
     def __init__(self, actor):
         self.actor = actor
         self.activeField = self.reloadField()
+
         self.activeVisit = dict()
 
     def reloadField(self):
         """Reload persisted pfsField."""
         try:
-            pfsDesignId, visit0 = self.actor.actorData.loadKey('pfsField')
-            pfsDesign = PfsDesign.read(int(pfsDesignId, 16), dirName=self.actor.actorConfig['pfsDesign']['rootDir'])
-            pfsField = PfsField(pfsDesign, visit0)
+            pfsField = PfsField.reload(self.actor)
         except:
             pfsField = None
 
@@ -44,14 +43,10 @@ class VisitManager(object):
         """Declare new field, read pfsDesign and get visit0."""
         self.finishField()
 
-        pfsDesign = PfsDesign.read(pfsDesignId, dirName=self.actor.actorConfig['pfsDesign']['rootDir'])
-        visit0 = self._fetchVisitFromGen2(pfsDesignId=pfsDesign.pfsDesignId)
+        visit0 = self._fetchVisitFromGen2(pfsDesignId=pfsDesignId)
+        self.activeField = PfsField.declareNew(self.actor, pfsDesignId, visit0)
 
-        self.activeField = PfsField(pfsDesign, visit0)
-        # persisting pfsField
-        self.actor.actorData.persistKey('pfsField', '0x%016x' % pfsDesign.pfsDesignId, visit0)
-
-        return pfsDesign, self.activeField.visit0
+        return self.activeField.pfsDesign, self.activeField.visit0
 
     def getField(self):
         """Get active field."""
@@ -63,11 +58,10 @@ class VisitManager(object):
     def finishField(self):
         """Finish declaredCurrentPfsDesign."""
         self.activeField = None
-        self.actor.actorData.persistKey('pfsField', None, None)
 
     def getCurrentDesignId(self):
         """Get declaredCurrentPfsDesignId."""
-        return self.getField().getPfsDesignId()
+        return self.getField().pfsDesignId
 
     def getVisit(self, caller, name=None):
         """Get visit, visit0 if available otherwise new one."""
@@ -175,16 +169,48 @@ class Visit(object):
 
 
 class PfsField(object):
-    """Hold pfsDesign and visit0."""
+    """Hold pfsDesign, visit0, pfsConfig..."""
 
-    def __init__(self, pfsDesign, visit0):
-        self.pfsDesign = pfsDesign
-        self.pfsConfig = None
-        self.visit0 = visit0
+    def __init__(self, iicActor, pfsDesignId, agV, fpsV, spsV):
+        self.iicActor = iicActor
+        self.visit = dict(ag=AgVisit(agV, name='visit0'),
+                          fps=FpsVisit(fpsV, name='visit0'),
+                          sps=SpsVisit(spsV, name='visit0'))
 
-        self.visit = dict(ag=AgVisit(visit0, name='visit0'),
-                          fps=FpsVisit(visit0, name='visit0'),
-                          sps=SpsVisit(visit0, name='visit0'))
+        pfsDesignId = int(pfsDesignId, 16) if isinstance(pfsDesignId, str) else pfsDesignId
+        self.pfsDesign = PfsDesign.read(pfsDesignId, dirName=iicActor.actorConfig['pfsDesign']['rootDir'])
+
+        # try to reload pfsConfig as well, it might already exist.
+        try:
+            self.pfsConfig, _ = self.loadPfsConfig()
+        except:
+            self.pfsConfig = None
+
+    @property
+    def visit0(self):
+        return self.visit['fps'].visitId
+
+    @property
+    def pfsDesignId(self):
+        return self.pfsDesign.pfsDesignId
+
+    @classmethod
+    def declareNew(cls, iicActor, pfsDesignId, visit0):
+        """Main constructor, called whenever a new design is declared."""
+        obj = cls(iicActor, pfsDesignId, *3 * [visit0])
+        obj.persist()
+        return obj
+
+    @classmethod
+    def reload(cls, iicActor):
+        """Reload pfsField object when iicActor restart."""
+        return cls(iicActor, *iicActor.actorData.loadKey('pfsField'))
+
+    def persist(self):
+        """Persist pfsField members to disk."""
+        self.iicActor.actorData.persistKey('pfsField',
+                                           '0x%016x' % self.pfsDesign.pfsDesignId,
+                                           *[self.visit[sub].visitId for sub in ['ag', 'fps', 'sps']])
 
     def getVisit(self, caller):
         """Get visit for caller."""
@@ -202,9 +228,8 @@ class PfsField(object):
         if caller == 'sps':
             self.visit['ag'] = AgVisit(newVisit.visitId)
 
-    def getPfsDesignId(self):
-        """Return current pfsDesignId."""
-        return self.pfsDesign.pfsDesignId
+        # persist visits to disk.
+        self.persist()
 
     def getGratingPosition(self):
         """Return required red grating position from pfsDesign."""
@@ -218,14 +243,14 @@ class PfsField(object):
         return position
 
     def loadPfsConfig(self):
-        """Load pfsConfig file after fps cobras convergence."""
-        [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.getPfsDesignId(),
+        """Load pfsConfig file after fps convergence."""
+        [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.pfsDesignId,
                                                                                                self.visit0))
         dirName, _ = os.path.split(pfsConfigPath)
         rootDir, _ = os.path.split(dirName)
         _, dateDir = os.path.split(rootDir)
 
-        self.pfsConfig = PfsConfig.read(self.getPfsDesignId(), self.visit0, dirName=dirName)
+        self.pfsConfig = PfsConfig.read(self.pfsDesignId, self.visit0, dirName=dirName)
         return self.pfsConfig, dateDir
 
 
