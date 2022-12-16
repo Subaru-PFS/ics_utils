@@ -1,8 +1,8 @@
 """ SPS-specific FITS routines. """
 
 from ics.utils.fits import wcs
-from ics.utils.fits import timecards
-from ics.utils.fits import mhs as fitsUtils
+from ics.utils.fits import mhs as fitsMhs
+from ics.utils.fits import utils as fitsUtils
 
 # These should come from some proper data product, but I would be
 # *very* surprised if the values matter much. They certainly do
@@ -120,19 +120,6 @@ class SpsFits:
         arms = {1:'b', 2:'r', 3:'n', 4:'m'}
         armNum = self.armNum(cmd)
         return arms[armNum]
-
-    def findCard(self, cards, cardName):
-        for c_i, c in enumerate(cards):
-            if c.name == cardName:
-                return c_i
-        return -1
-
-    def removeCard(self, cards, cardName):
-        idx = self.findCard(cards, cardName)
-        if idx >= 0:
-            cards.pop(idx)
-
-        return cards
 
     def getLightSource(self, cmd):
         """Return our lightsource (pfi, sunss, dcb, dcb2). """
@@ -311,8 +298,8 @@ class SpsFits:
                 modelNames.remove(lampsName)
 
         cmd.debug(f'text="fetching MHS cards from {modelNames}"')
-        cards = fitsUtils.gatherHeaderCards(cmd, self.actor,
-                                            modelNames=modelNames,shortNames=True)
+        cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
+                                          modelNames=modelNames,shortNames=True)
         cmd.debug('text="fetched %d MHS cards..."' % (len(cards)))
 
         return cards
@@ -336,8 +323,8 @@ class SpsFits:
             else:
                 modelNames = [lightSource]
             cmd.debug(f'text="fetching ending MHS cards from {modelNames}"')
-            cards = fitsUtils.gatherHeaderCards(cmd, self.actor,
-                                                modelNames=modelNames,shortNames=True)
+            cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
+                                              modelNames=modelNames,shortNames=True)
             cmd.debug('text="fetched %d ending MHS cards..."' % (len(cards)))
         except Exception as e:
             cmd.warn(f'text="failed to fetch ending cards: {e}"')
@@ -376,8 +363,7 @@ class SpsFits:
         mhsCards = self.getMhsCards(cmd)
 
         # We might be overriding the Subaru/gen2 OBJECT.
-        if self.findCard(designCards, 'OBJECT') >= 0:
-            self.removeCard(mhsCards, 'OBJECT')
+        fitsUtils.moveCard(designCards, mhsCards, 'OBJECT')
 
         allCards = []
         allCards.append(dict(name='DATA-TYP', value=exptype, comment='Subaru-style exposure type'))
