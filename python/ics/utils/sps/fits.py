@@ -1,8 +1,8 @@
 """ SPS-specific FITS routines. """
 
 from ics.utils.fits import wcs
-from ics.utils.fits import timecards
-from ics.utils.fits import mhs as fitsUtils
+from ics.utils.fits import mhs as fitsMhs
+from ics.utils.fits import utils as fitsUtils
 
 # These should come from some proper data product, but I would be
 # *very* surprised if the values matter much. They certainly do
@@ -179,6 +179,7 @@ class SpsFits:
         lightSource = self.getLightSource(cmd)
         if lightSource == 'sunss':
             designId = 0xdeadbeef
+            objectCard = 'SuNSS'
         elif lightSource == 'pfi':
             try:
                 model = self.actor.models['iic'].keyVarDict
@@ -186,6 +187,8 @@ class SpsFits:
             except Exception as e:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
                 designId = 9998
+            # Let the gen2 keyword stay
+            objectCard = None
         elif lightSource in {'dcb', 'dcb2'}:
             try:
                 model = self.actor.models[lightSource].keyVarDict
@@ -193,10 +196,14 @@ class SpsFits:
             except Exception as e:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
                 designId = 9998
+            objectCard = f'{lightSource}'
         else:
             cmd.warn(f'text="unknown lightsource ({lightSource}) for a designId')
             designId = 9999
+            objectCard = 'unknown'
 
+        if objectCard is not None:
+            cards.append(dict(name='OBJECT', value=objectCard, comment='Internal id for this light source'))
         cards.append(dict(name='W_PFDSGN', value=int(designId), comment=f'pfsDesign, from {lightSource}'))
         cards.append(dict(name='W_LGTSRC', value=str(lightSource), comment='Light source for this module'))
         return cards
@@ -291,8 +298,8 @@ class SpsFits:
                 modelNames.remove(lampsName)
 
         cmd.debug(f'text="fetching MHS cards from {modelNames}"')
-        cards = fitsUtils.gatherHeaderCards(cmd, self.actor,
-                                            modelNames=modelNames,shortNames=True)
+        cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
+                                          modelNames=modelNames,shortNames=True)
         cmd.debug('text="fetched %d MHS cards..."' % (len(cards)))
 
         return cards
@@ -316,8 +323,8 @@ class SpsFits:
             else:
                 modelNames = [lightSource]
             cmd.debug(f'text="fetching ending MHS cards from {modelNames}"')
-            cards = fitsUtils.gatherHeaderCards(cmd, self.actor,
-                                                modelNames=modelNames,shortNames=True)
+            cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
+                                              modelNames=modelNames,shortNames=True)
             cmd.debug('text="fetched %d ending MHS cards..."' % (len(cards)))
         except Exception as e:
             cmd.warn(f'text="failed to fetch ending cards: {e}"')
@@ -354,6 +361,9 @@ class SpsFits:
         designCards = self.getPfsDesignCards(cmd)
         endCards = self.getEndInstCards(cmd)
         mhsCards = self.getMhsCards(cmd)
+
+        # We might be overriding the Subaru/gen2 OBJECT.
+        fitsUtils.moveCard(designCards, mhsCards, 'OBJECT')
 
         allCards = []
         allCards.append(dict(name='DATA-TYP', value=exptype, comment='Subaru-style exposure type'))
