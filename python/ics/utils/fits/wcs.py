@@ -20,6 +20,7 @@ def pixelWcsCards():
 
     cards = []
     cards.append(dict(name="COMMENT", value="#### Pixel-pixel WCS"))
+    cards.append(dict(name='WCS-ORIG', value="PFS ics_utils", comment='Origin of WCS values'))
     for ax_i in 1,2:
         cards.append(dict(name=f'CRPIX{ax_i}', value=1.0,
                           comment='Pixel coordinate of reference point'))
