@@ -59,6 +59,10 @@ class FSMThread(FSMDevice, LockedThread):
 
         self.setMonitoring(FSMThread.defaultMonitorPeriod)
 
+    @property
+    def controllerConfig(self):
+        return self.actor.actorConfig[self.name]
+
     def loadCfg(self, cmd, mode=None):
         """Called by FSM loading state callback, loadCfg=>openComm=>testComm.
 

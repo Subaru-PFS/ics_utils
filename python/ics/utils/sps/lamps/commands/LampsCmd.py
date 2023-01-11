@@ -211,9 +211,9 @@ class LampsCmd(object):
     def start(self, cmd):
         """Wait for pdu host, connect iis controller."""
         cmdKeys = cmd.cmd.keywords
-        mode = self.actor.config.get(self.name, 'mode')
-        host = self.actor.config.get(self.name, 'host')
-        port = self.actor.config.get(self.name, 'port')
+        mode = self.actor.actorConfig[self.name]['mode']
+        host = self.actor.actorConfig[self.name]['host']
+        port = self.actor.actorConfig[self.name]['port']
         mode = 'operation' if 'operation' in cmdKeys else mode
         mode = 'simulation' if 'simulation' in cmdKeys else mode
 

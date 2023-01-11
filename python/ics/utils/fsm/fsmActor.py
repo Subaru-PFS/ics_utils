@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 
-import configparser
 import logging
 
 import actorcore.ICC
@@ -44,7 +43,7 @@ class FsmActor(actorcore.ICC.ICC):
     def genInstConfigKeys(self, cmd):
         """ Generate config keywords"""
         # leaving that here for now, not sure it will last long.
-        cmd.inform('sections=%08x,"%r"' % (id(self.config), self.config))
+        cmd.inform('instConfig=%08x,"%s"' % (id(self.actorConfig), self.actorConfig.filepath))
 
     def letsGetReadyToRumble(self):
         """ just startup nicely"""
@@ -55,8 +54,8 @@ class FsmActor(actorcore.ICC.ICC):
         if self.everConnected is False:
             # reversing the starting logic, look safer to me.
             try:
-                ignoreControllers = [s.strip() for s in self.config.get(self.name, 'ignoreControllers').split(',')]
-            except configparser.NoOptionError:
+                ignoreControllers = self.actorConfig['icc']['ignoreControllers']
+            except KeyError:
                 ignoreControllers = []
 
             self.ignoreControllers = ignoreControllers

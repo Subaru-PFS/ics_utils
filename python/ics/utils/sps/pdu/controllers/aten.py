@@ -1,6 +1,5 @@
 __author__ = 'alefur'
 
-import configparser
 import logging
 import time
 
@@ -64,20 +63,21 @@ class aten(FSMThread, bufferedSocket.EthComm):
         :type mode: str
         :raise: Exception if config file is badly formatted.
         """
-        name = self.name if name is None else name
-        self.mode = self.actor.config.get(name, 'mode') if mode is None else mode
+        controllerConfig = self.controllerConfig if name is None else self.actor.actorConfig[name]
+        self.mode = controllerConfig['mode'] if mode is None else mode
         bufferedSocket.EthComm.__init__(self,
-                                        host=self.actor.config.get(name, 'host'),
-                                        port=int(self.actor.config.get(name, 'port')),
+                                        host=controllerConfig['host'],
+                                        port=controllerConfig['port'],
                                         EOL='\r\n', stripTelnet=True)
-        self.powerNames = dict([(key, val) for (key, val) in self.actor.config.items('outlets')])
-        self.powerPorts = dict([(val, key) for (key, val) in self.actor.config.items('outlets')])
+        self.powerNames = dict([(str(key).zfill(2), val) for (key, val) in controllerConfig['outlets'].items()])
+        self.powerPorts = dict([(val, key) for (key, val) in self.powerNames.items()])
+
 
         def loadOptionalConfig(option):
             """ Convenience to load optional config."""
             try:
-                return int(self.actor.config.get(name, option))
-            except configparser.NoOptionError:
+                return self.controllerConfig[option]
+            except KeyError:
                 return getattr(self, option)
 
         self.maxIOAttempt = loadOptionalConfig('maxIOAttempt')
