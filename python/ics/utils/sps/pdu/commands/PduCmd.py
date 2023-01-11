@@ -73,9 +73,9 @@ class PduCmd(object):
     def start(self, cmd):
         """Connect pdu controller."""
         cmdKeys = cmd.cmd.keywords
-        mode = self.actor.config.get('pdu', 'mode')
-        host = self.actor.config.get('pdu', 'host')
-        port = self.actor.config.get('pdu', 'port')
+        mode = self.actor.actorConfig['pdu']['mode'],
+        host = self.actor.actorConfig['pdu']['host'],
+        port = self.actor.actorConfig['pdu']['port'],
         mode = 'operation' if 'operation' in cmdKeys else mode
         mode = 'simulation' if 'simulation' in cmdKeys else mode
 

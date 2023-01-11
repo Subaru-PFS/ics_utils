@@ -67,13 +67,13 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         :type mode: str
         :raise: Exception if config file is badly formatted.
         """
-        self.mode = self.actor.config.get(self.name, 'mode') if mode is None else mode
-        self.lampNames = [l.strip() for l in self.actor.config.get(self.name, 'lampNames').split(',')]
+        self.mode = self.controllerConfig['mode'] if mode is None else mode
+        self.lampNames = self.controllerConfig['lampNames']
         self.sim = simulator.Sim()
 
         bufferedSocket.EthComm.__init__(self,
-                                        host=self.actor.config.get(self.name, 'host'),
-                                        port=int(self.actor.config.get(self.name, 'port')),
+                                        host=self.controllerConfig['host'],
+                                        port=self.controllerConfig['port'],
                                         EOL='\r\n')
 
     def _openComm(self, cmd):

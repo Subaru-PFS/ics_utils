@@ -63,7 +63,7 @@ class aten(atenPdu):
         :raise: Exception if config file is badly formatted.
         """
         atenPdu._loadCfg(self, cmd, mode=mode)
-        self.lampNames = [l.strip() for l in self.actor.config.get(self.name, 'lampNames').split(',')]
+        self.lampNames = self.controllerConfig['lampNames']
 
         for lamp in self.lampNames:
             # additional check that the pdu config/actor config actually match
