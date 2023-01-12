@@ -19,11 +19,11 @@ class VisitManager(object):
 
         return persisted
 
-    def declareNewField(self, pfsDesignId):
+    def declareNewField(self, pfsDesignId, genVisit0=True):
         """Declare new field, read pfsDesign and get visit0."""
         self.finishField()
 
-        visit0 = self._fetchVisitFromGen2(pfsDesignId=pfsDesignId)
+        visit0 = self._fetchVisitFromGen2(pfsDesignId=pfsDesignId) if genVisit0 else 0
         self.activeField = pfsField.PfsField.declareNew(self.actor, pfsDesignId, visit0)
 
         return self.activeField.pfsDesign, self.activeField.visit0
