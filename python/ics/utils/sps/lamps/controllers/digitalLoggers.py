@@ -108,7 +108,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         cmd.inform(f'{self.name}pduModel=digitalLoggers')
 
         for lamp in lampNames:
-            self.lampStates[lamp] = lampUtils.LampState()
+            self.lampStates[lamp] = lampUtils.LampState(lamp)
 
         self.switchOff(cmd, lampNames)
 

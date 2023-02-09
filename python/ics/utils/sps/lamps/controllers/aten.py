@@ -77,7 +77,7 @@ class aten(atenPdu):
         """Instanciate lampState for each lamp and switch them off by safety."""
 
         for lamp in self.lampNames:
-            self.lampStates[lamp] = lampUtils.LampState()
+            self.lampStates[lamp] = lampUtils.LampState(lamp)
 
         self.getStatus(cmd)
         self.switchOff(cmd, self.lampsOn)

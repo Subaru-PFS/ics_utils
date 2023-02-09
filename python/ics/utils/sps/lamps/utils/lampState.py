@@ -7,9 +7,14 @@ allLamps = list(warmingTime.keys())
 
 
 class LampState(object):
+    # max time a lamp can stay off, without requiring pre-warming again.
+    maxTimeIdle = 1200
+    # number of seconds of pre-warming time for all lamps but hgar/hgcd.
+    preWarmingTime = 5
     """ Handle lamp state and keywords. """
 
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.state = 'unknown'
         self.onTimestamp = self.offTimestamp = pfsTime.timestamp()
 
@@ -21,6 +26,15 @@ class LampState(object):
         return ','.join([f'{self.state}',
                          f'{pfsTime.Time.fromtimestamp(self.offTimestamp).isoformat()}',
                          f'{pfsTime.Time.fromtimestamp(self.onTimestamp).isoformat()}'])
+
+    def needWarmup(self, now):
+        """Does the lamp needs to warmed up during wipe"""
+        # short pre-warmup if the lamp has not been used in a long time.
+        needWarmupTime = 0 if not self.lampOn and (now - self.offTimestamp) < LampState.maxTimeIdle else LampState.preWarmingTime
+        # overriding anyway for hgar, basically trying to crudely imitate hgcd pfilamps logic, never tested...
+        needWarmupTime = 60 if self.name in ['hgar', 'hgcd'] else needWarmupTime
+
+        return needWarmupTime
 
     def setState(self, state, genTimeStamp=False):
         """ Update current state and generate timestamp is requested. """
