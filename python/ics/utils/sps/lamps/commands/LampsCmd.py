@@ -4,6 +4,7 @@ import time
 
 import ics.utils.sps.lamps.utils.lampState as lampState
 import ics.utils.tcp.utils as tcpUtils
+import ics.utils.time as pfsTime
 import opscore.protocols.keys as keys
 import opscore.protocols.types as types
 from ics.utils.threading import threaded, singleShot, blocking
@@ -191,13 +192,12 @@ class LampsCmd(object):
             self.config.clear()
             return
 
-        if 'hgar' in self.config:
-            # trying to crudely imitate pfilamps hgcd logic by pre-warming hgar, never tested, might not even be useful.
-            self.controller.substates.warming(cmd, lamps=['hgar'], warmingTime=lampState.warmingTime['hgar'])
-            self.controller.switchOff(cmd, ['hgar'])
-        else:
-            # no sort of pre-warming for other lamps, just proceed.
-            pass
+        now = pfsTime.timestamp()
+        toBeWarmedUp = dict([(lamp, self.controller.lampStates[lamp].needWarmup(now)) for lamp in self.config.keys()])
+        warmingTime = max(toBeWarmedUp.values())
+
+        if warmingTime:
+            self.controller.substates.warming(cmd, lamps=list(toBeWarmedUp.keys()), warmingTime=warmingTime)
 
         cmd.finish('text="lamps are ready"')
 
