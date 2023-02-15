@@ -3,8 +3,11 @@ from ics.utils.sps.spectroIds import SpectroIds
 
 
 class LightSource(str):
-    validNames = ['dcb', 'dcb2', 'sunss', 'pfi']
+    validNames = ['dcb', 'dcb2', 'sunss', 'pfi', 'none']
     """Class to describe lightSource, fairly minimal for now."""
+
+    def __new__(cls, name):
+        return str.__new__(cls, str(name).lower())
 
     @property
     def lampsActor(self):
@@ -12,6 +15,8 @@ class LightSource(str):
             return self
         elif self == 'pfi':
             return 'pfilamps'
+        elif self in ['sunss', 'none']:
+            return None
         else:
             raise ValueError(f'unknown lampsActor for {self}')
 
@@ -305,10 +310,8 @@ class SpecModule(SpectroIds):
                 deps += [self.fca, self.bia]
                 deps += [self.rda] if arm in ['r', 'm'] else []
 
-                # ignoring lampsActor for SuNSS.
-                lampsActor = [] if self.lightSource == 'sunss' else [self.lightSource.lampsActor]
-
-                deps += lampsActor
+                # adding lampActor, will be None for SuNSS.
+                deps += [self.lightSource.lampsActor] if self.lightSource.lampsActor else []
 
             return deps
 
