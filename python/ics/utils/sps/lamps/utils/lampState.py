@@ -8,7 +8,7 @@ allLamps = list(warmingTime.keys())
 
 class LampState(object):
     # max time a lamp can stay off, without requiring pre-warming again.
-    maxTimeIdle = 1200
+    maxTimeIdle = 7200
     # number of seconds of pre-warming time for all lamps but hgar/hgcd.
     preWarmingTime = 5
     """ Handle lamp state and keywords. """
