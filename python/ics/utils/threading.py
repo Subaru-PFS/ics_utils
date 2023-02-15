@@ -1,6 +1,7 @@
 import time
 from functools import partial
 
+import actorcore.Actor as coreActor
 from actorcore.QThread import QThread
 from ics.utils.fsm.fsmThread import LockedThread
 
@@ -25,7 +26,14 @@ def putMsg(func):
 
 def putAndExit(func):
     def wrapper(self, cmd, *args, **kwargs):
-        thr = QThread(self.actor, str(time.time()))
+        if isinstance(self, coreActor.Actor):
+            actor = self
+        elif hasattr(self, 'actor'):
+            actor = self.actor
+        else:
+            raise RuntimeError('this must run within an actor.')
+
+        thr = QThread(actor, str(time.time()))
         thr.start()
         thr.putMsg(partial(func, self, cmd, *args, **kwargs))
         thr.exitASAP = True
