@@ -193,11 +193,12 @@ class LampsCmd(object):
             return
 
         now = pfsTime.timestamp()
-        toBeWarmedUp = dict([(lamp, self.controller.lampStates[lamp].needWarmup(now)) for lamp in self.config.keys()])
-        warmingTime = max(toBeWarmedUp.values())
+        needWarmup = dict([(lamp, self.controller.lampStates[lamp].needWarmup(now)) for lamp in self.config.keys()])
+        lamps = [lamp for lamp, warmingTime in needWarmup.items() if warmingTime]
 
-        if warmingTime:
-            self.controller.substates.warming(cmd, lamps=list(toBeWarmedUp.keys()), warmingTime=warmingTime)
+        if lamps:
+            self.controller.substates.warming(cmd, lamps=lamps, warmingTime=max(needWarmup.values()))
+            self.controller.switchOff(cmd, lamps)
 
         cmd.finish('text="lamps are ready"')
 
