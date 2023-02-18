@@ -1,5 +1,7 @@
 """ SPS-specific FITS routines. """
 
+import datetime
+
 from ics.utils.fits import wcs
 from ics.utils.fits import mhs as fitsMhs
 from ics.utils.fits import utils as fitsUtils
@@ -26,6 +28,55 @@ armSpecs = dict(b=dict(wavemin=380.0,
                        wavemax=1260.0,
                        wavemid=1107.0,
                        fringe=1007.0))
+
+def getPfsConfigCards(actor, cmd, visit):
+    """Return the required PHDU cards for the pfsConfig files.
+
+    This is likely to evolve. Specifically, we will sometimes not have a single PROP-ID.
+
+    Args
+    ----
+    actor : `Actor`
+       The actor with the models
+    cmd : `Command`
+       who we report problems to
+    visit : `int`
+       the PFS visit for this pfsConfig
+
+    Returns
+    -------
+    cards : dict(cardName, (value, comment))
+       A *pyfits*-style card dictionary.
+    """
+
+    cards = dict()
+    try:
+        gen2 = actor.models['gen2'].keyVarDict
+    except Exception as e:
+        cmd.warn('text="failed to load gen2 model: %s"' % (e))
+        return cards
+
+    observatory, telescope, instrument = [str(v) for v in gen2['inst_ids'].getValue()]
+    proposal, mode, allocation, observers = [str(v) for v in gen2['program'].getValue()]
+
+    # We would like to know when this config was used. No system
+    # actually knows for sure, so we snag a timestamp now. The
+    # corresponding acquisition will be after this. Must be UTC.
+    now = datetime.datetime.now(datetime.timezone.utc)
+    dayStr = now.strftime('%Y-%m-%d')
+
+    frameId = f'PFSF{visit:06}00'
+    expId = f'PFSE{visit:08}'
+
+    cards['FRAMEID'] = (frameId, 'Sequence number in archive')
+    cards['EXP-ID'] = (expId, 'Grouping ID for PFS visit')
+    cards['TELESCOP'] = (instrument, 'Instrument name')
+    cards['INSTRUME'] = (telescope, 'Telescope name')
+    cards['OBSERVER'] = (observers, 'Name(s) of observer(s)')
+    cards['PROP-ID'] = (proposal, 'Proposal ID')
+    cards['DATE-OBS'] = (dayStr, '[YMD] pfsConfig creation date, UTC')
+
+    return cards
 
 def getSpsSpectroCards(arm):
     """Return the Subaru-specific spectroscopy cards.
