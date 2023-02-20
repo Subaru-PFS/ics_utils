@@ -70,8 +70,8 @@ def getPfsConfigCards(actor, cmd, visit):
 
     cards['FRAMEID'] = (frameId, 'Sequence number in archive')
     cards['EXP-ID'] = (expId, 'Grouping ID for PFS visit')
-    cards['TELESCOP'] = (instrument, 'Instrument name')
-    cards['INSTRUME'] = (telescope, 'Telescope name')
+    cards['TELESCOP'] = (telescope, 'Telescope name')
+    cards['INSTRUME'] = (instrument, 'Instrument name')
     cards['OBSERVER'] = (observers, 'Name(s) of observer(s)')
     cards['PROP-ID'] = (proposal, 'Proposal ID')
     cards['DATE-OBS'] = (dayStr, '[YMD] pfsConfig creation date, UTC')
