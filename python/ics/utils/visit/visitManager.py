@@ -47,7 +47,7 @@ class VisitManager(object):
     def getVisit(self, caller, name=None):
         """Get visit, visit0 if available otherwise new one."""
         if self.activeField:
-            if not self.activeField.visitAvailableFor(caller):
+            if not self.activeField.isVisitAvailableFor(caller):
                 new = self.newVisit(caller, name=name)
                 self.activeField.reconfigure(caller=caller, newVisit=new)
 

@@ -53,7 +53,7 @@ class PfsField(object):
         """Get visit for caller."""
         return self.visit[caller]
 
-    def visitAvailableFor(self, caller):
+    def isVisitAvailableFor(self, caller):
         """Is visit available for that caller."""
         return self.getVisit(caller).isAvailable
 
@@ -79,11 +79,21 @@ class PfsField(object):
 
         return position
 
+    def getPfsConfig(self, visitId, cards):
+        """Create and return a new pfsConfig object for this visit.
+         Copy the current pfsConfig0 if available, otherwise directly create it from the current pfsDesign."""
+        if self.pfsConfig0:
+            pfsConfig = self.pfsConfig0.copy(visit=visitId, header=cards)
+        else:
+            pfsConfig = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId, pfiCenter=self.pfsDesign.pfiNominal,
+                                                header=cards)
+        return pfsConfig
+
     def loadPfsConfig0(self):
         """Load pfsConfig file after fps convergence."""
         [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.pfsDesignId,
                                                                                                self.visit0))
         dirName, _ = os.path.split(pfsConfigPath)
-
         self.pfsConfig0 = PfsConfig.read(self.pfsDesignId, self.visit0, dirName=dirName)
+
         return self.pfsConfig0
