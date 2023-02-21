@@ -2,6 +2,7 @@ import glob
 import os
 
 import ics.utils.visit.pfsVisit as pfsVisit
+import pfs.utils.ingestPfsDesign as ingestPfsDesign
 from pfs.datamodel import PfsDesign, PfsConfig
 
 
@@ -19,7 +20,7 @@ class PfsField(object):
 
         # try to reload pfsConfig as well, it might already exist.
         try:
-            self.pfsConfig0 = self.loadPfsConfig0()
+            self.pfsConfig0 = self.loadPfsConfig0(self.pfsDesignId, self.visit0)
         except:
             self.pfsConfig0 = None
 
@@ -80,17 +81,24 @@ class PfsField(object):
         return position
 
     def getPfsConfig(self, visitId, cards):
-        """Create and return a new pfsConfig object for this visit.
-         Copy the current pfsConfig0 if available, otherwise directly create it from the current pfsDesign."""
-        if self.pfsConfig0:
-            pfsConfig = self.pfsConfig0.copy(visit=visitId, header=cards)
-        else:
-            pfsConfig = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId, pfiCenter=self.pfsDesign.pfiNominal,
-                                                header=cards)
-        return pfsConfig
+        """Create and return a new pfsConfig object for this visit."""
+        # if there is no pfsConfig0, meaning that there is no matching fps.pfsConfig, so create it from pfsDesign.
+        if self.pfsConfig0 is None:
+            self.pfsConfig0 = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId, pfiCenter=self.pfsDesign.pfiNominal)
+            ingestPfsDesign.ingestPfsConfig(self.pfsConfig0)
 
-    def loadPfsConfig0(self):
+            # in the case of merged dcb+SuNSS+None design, visit0 is not generated and is set to 0.
+            if not self.visit0:
+                self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
+
+        return self.pfsConfig0.copy(visit=visitId, header=cards)
+
+    def loadPfsConfig0(self, designId, visit0):
         """Load pfsConfig file after fps convergence."""
+        # if designId or visit0 does not match, do not anything.
+        if designId != self.pfsDesignId or visit0 != self.visit0:
+            return
+
         [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.pfsDesignId,
                                                                                                self.visit0))
         dirName, _ = os.path.split(pfsConfigPath)
