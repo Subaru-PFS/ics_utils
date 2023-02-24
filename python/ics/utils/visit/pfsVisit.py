@@ -94,7 +94,11 @@ class FpsVisit(Visit):
 
     @property
     def isAvailable(self):
-        return not self.isActive and not self.isPopulated
+        return not (self.isActive or self.isPopulated or self.isPfsConfig0Populated)
+
+    @property
+    def isPfsConfig0Populated(self):
+        return opDB.fetchone(f'select visit0 from pfs_config where visit0={self.visitId}')
 
 
 class SpsVisit(Visit):

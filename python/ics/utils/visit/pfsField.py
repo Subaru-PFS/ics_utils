@@ -1,6 +1,6 @@
 import glob
 import os
-
+import logging
 import ics.utils.visit.pfsVisit as pfsVisit
 import pfs.utils.ingestPfsDesign as ingestPfsDesign
 from pfs.datamodel import PfsDesign, PfsConfig
@@ -10,6 +10,7 @@ class PfsField(object):
     """Hold pfsDesign, visit0, pfsConfig..."""
 
     def __init__(self, iicActor, pfsDesignId, agV, fpsV, spsV):
+        self.logger = logging.getLogger('pfsField')
         self.iicActor = iicActor
         self.visit = dict(ag=pfsVisit.AgVisit(agV, name='visit0'),
                           fps=pfsVisit.FpsVisit(fpsV, name='visit0'),
@@ -84,11 +85,12 @@ class PfsField(object):
         """Create and return a new pfsConfig object for this visit."""
         # if there is no pfsConfig0, meaning that there is no matching fps.pfsConfig, so create it from pfsDesign.
         if self.pfsConfig0 is None:
+            self.logger.info('pfsConfig0 is not available, creating it from current PfsDesign.')
             self.pfsConfig0 = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId, pfiCenter=self.pfsDesign.pfiNominal)
             ingestPfsDesign.ingestPfsConfig(self.pfsConfig0)
 
-            # in the case of merged dcb+SuNSS+None design, visit0 is not generated and is set to 0.
-            if not self.visit0:
+            # make sure that fpsVisit stay in sync with pfsConfig0.visit.
+            if self.visit0 != self.pfsConfig0.visit:
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
 
         return self.pfsConfig0.copy(visit=visitId, header=cards)
@@ -102,6 +104,7 @@ class PfsField(object):
         [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.pfsDesignId,
                                                                                                self.visit0))
         dirName, _ = os.path.split(pfsConfigPath)
+        self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
         self.pfsConfig0 = PfsConfig.read(self.pfsDesignId, self.visit0, dirName=dirName)
 
         return self.pfsConfig0
