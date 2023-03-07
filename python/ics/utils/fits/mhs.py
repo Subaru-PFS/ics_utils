@@ -184,7 +184,7 @@ def gatherHeaderCards(cmd, actor, modelNames=None, shortNames=True):
 
     return allCards
 
-def cardFormatsForModel(model):
+def cardFormatsForModel(model, dropGlobals=True):
     """
     For a given actorkeys model, return a dictionary describing the formats of all the FITS cards l.
 
@@ -192,6 +192,8 @@ def cardFormatsForModel(model):
     ----
     model : opscore.actor.Model
       Usually from self.actor.models[modelName]
+    dropGlobals: `bool`
+      Whether to skip non-PFS cards: cards whose names do not start with `W_`
 
     Returns
     -------
@@ -215,7 +217,10 @@ def cardFormatsForModel(model):
                         reprFmt = rest[0]
                     else:
                         reprFmt = None
-                        
+
+                    if dropGlobals and not shortCard.startswith('W_'):
+                        continue
+
                     if longCard == '':
                         longCard = shortCard
                     if shortCard.startswith('W_') and not longCard.startswith('W_'):
@@ -248,7 +253,7 @@ def cardFormatsForModel(model):
                         elif baseType == float:
                             reprFmt = "%0.3f"
                         elif baseType == str:
-                            reprFmt = "%-8s"  # Handles FITS minimum string: 'short   '
+                            reprFmt = "%28s"  # Handles FITS minimum string: 'short   '
                         else:
                             reprFmt = ""
 
@@ -270,7 +275,7 @@ def cardFormatsForModel(model):
 
     return cards
 
-def gatherHeaderFormats(cmd, actor, modelNames=None):
+def gatherHeaderFormats(cmd, actor, modelNames=None, dropGlobals=True):
     """ Fetch and return the Subaru-required formatting table for all FITS cards defined in the given models.
 
     Args
@@ -297,7 +302,7 @@ def gatherHeaderFormats(cmd, actor, modelNames=None):
     for modName in modelNames:
         logger.info(f'gathering cards from model {modName}')
         try:
-            modDict = cardFormatsForModel(actor.models[modName])
+            modDict = cardFormatsForModel(actor.models[modName], dropGlobals=dropGlobals)
             for keyname in modDict:
                 keyDict = modDict[keyname]
                 keyDict['actor'] = modName
@@ -312,8 +317,8 @@ def gatherHeaderFormats(cmd, actor, modelNames=None):
 
     return allFormats
 
-def printHeaderFormats(cmd, actor, filename, longNames=True):
-    formats = gatherHeaderFormats(cmd, actor)
+def printHeaderFormats(cmd, actor, filename, longNames=True, dropGlobals=True):
+    formats = gatherHeaderFormats(cmd, actor, dropGlobals=dropGlobals)
 
     path = pathlib.Path(filename)
     suffix = path.suffix
@@ -427,7 +432,7 @@ def startFitsFile(cmd, filename, cards,
         except Exception as e:
             cmd.warn(f'text="FAILED to write translation HDU for {filename}: {e}"')
 
-def simpleFits(cmd, actor, filename, modelNames=None, img=None, shortNames=False):
+def simpleFits(cmd, actor, filename, modelNames=None, img=None, shortNames=True):
     allCards = gatherHeaderCards(cmd, actor, modelNames=modelNames,
                                  shortNames=shortNames)
 
