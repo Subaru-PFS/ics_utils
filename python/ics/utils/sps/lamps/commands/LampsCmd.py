@@ -25,8 +25,8 @@ class LampsCmd(object):
             (name, 'status', self.status),
             (name, '[<on>] [<warmingTime>] [force]', self.warmup),
             (name, '<off>', self.switchOff),
-            (name, 'stop', self.stopController),
-            (name, 'start [@(operation|simulation)]', self.startController),
+            (name, 'stop', self.stop),
+            (name, 'start [@(operation|simulation)]', self.start),
 
             ('prepare', '[<halogen>] [<argon>] [<neon>] [<krypton>] [<xenon>] [<hgar>] [<hgcd>]', self.prepare),
             ('go', '[<delay>] [@noWait]', self.go),
@@ -196,13 +196,13 @@ class LampsCmd(object):
         cmd.finish('text="lamps are ready"')
 
     @singleShot
-    def stopController(self, cmd):
+    def stop(self, cmd):
         """Abort iis warmup, turn iis lamp off and disconnect."""
         self.actor.disconnect(self.name, cmd=cmd)
         cmd.finish()
 
     @singleShot
-    def startController(self, cmd):
+    def start(self, cmd):
         """Wait for pdu host, connect iis controller."""
         cmdKeys = cmd.cmd.keywords
         mode = self.actor.actorConfig[self.name]['mode']
