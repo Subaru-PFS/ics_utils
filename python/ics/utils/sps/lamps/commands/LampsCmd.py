@@ -25,14 +25,14 @@ class LampsCmd(object):
             (name, 'status', self.status),
             (name, '[<on>] [<warmingTime>] [force]', self.warmup),
             (name, '<off>', self.switchOff),
-            (name, 'stop', self.stop),
-            (name, 'start [@(operation|simulation)]', self.start),
+            (name, 'stop', self.stopController),
+            (name, 'start [@(operation|simulation)]', self.startController),
 
-            ('stop', '', self.abort),
             ('prepare', '[<halogen>] [<argon>] [<neon>] [<krypton>] [<xenon>] [<hgar>] [<hgcd>]', self.prepare),
+            ('go', '[<delay>] [@noWait]', self.go),
+            ('stop', '', self.abort),
+            ('abort', '', self.abort),
             ('waitForReadySignal', '', self.waitForReadySignal),
-            ('go', '[<delay>]', self.timedGoSequence),
-            ('go', '@(noWait) [<delay>]', self.goNoWait),
         ]
 
         self.vocab += [('sources', cmdStr, func) for __, cmdStr, func in self.vocab]
@@ -134,35 +134,7 @@ class LampsCmd(object):
         cmd.finish('text="will turn on: %s"' % self.lampString)
 
     @blocking
-    def timedGoSequence(self, cmd):
-        """ Start go command, return until completion. """
-        cmdKeys = cmd.cmd.keywords
-        delay = cmdKeys['delay'].values[0] if 'delay' in cmdKeys else 0.0
-
-        if self.config is None or len(self.config) == 0:
-            cmd.fail('text="no lamps are configured to turn on now"')
-            self.config.clear()
-            return
-
-        self.go(cmd, delay=delay)
-
-    def goNoWait(self, cmd):
-        """ Start go command, return immediately. """
-        if self.controller.isLocked:
-            raise RuntimeWarning(f'{self.controller.name} thread is locked')
-
-        if self.config is None or len(self.config) == 0:
-            cmd.fail('text="no lamps are configured to turn on now"')
-            self.config.clear()
-            return
-
-        cmdKeys = cmd.cmd.keywords
-        delay = cmdKeys['delay'].values[0] if 'delay' in cmdKeys else 0.0
-
-        self.controller.putMsg(self.go, cmd=self.actor.bcast, delay=delay)
-        cmd.finish('text="return immediately"')
-
-    def go(self, cmd, delay):
+    def _go(self, cmd, delay):
         """Run the preconfigured illumination sequence.
 
         Note
@@ -179,6 +151,27 @@ class LampsCmd(object):
             self.controller.substates.triggering(cmd)
 
         self.controller.generate(cmd)
+
+    def go(self, cmd):
+        """ Start go command, return until completion. """
+        cmdKeys = cmd.cmd.keywords
+        delay = cmdKeys['delay'].values[0] if 'delay' in cmdKeys else 0.0
+        noWait = 'noWait' in cmdKeys
+
+        if self.controller.isLocked:
+            raise RuntimeWarning(f'{self.controller.name} thread is locked')
+
+        if self.config is None or len(self.config) == 0:
+            cmd.fail('text="no lamps are configured to turn on now"')
+            self.config.clear()
+            return
+
+        # just finish command now and proceed.
+        if noWait:
+            cmd.finish('text="return immediately"')
+            cmd = self.actor.bcast
+
+        self._go(cmd, delay=delay)
 
     def abort(self, cmd):
         """Abort iis warmup."""
@@ -203,13 +196,13 @@ class LampsCmd(object):
         cmd.finish('text="lamps are ready"')
 
     @singleShot
-    def stop(self, cmd):
+    def stopController(self, cmd):
         """Abort iis warmup, turn iis lamp off and disconnect."""
         self.actor.disconnect(self.name, cmd=cmd)
         cmd.finish()
 
     @singleShot
-    def start(self, cmd):
+    def startController(self, cmd):
         """Wait for pdu host, connect iis controller."""
         cmdKeys = cmd.cmd.keywords
         mode = self.actor.actorConfig[self.name]['mode']

@@ -179,7 +179,7 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
         """
         for lamp in lamps:
             lampState = self.crudeSwitch(cmd, lamp, 'off')
-            self.genKeys(cmd, lampState, genTimeStamp=True)
+            self.genKeys(cmd, lampState, genTimeStamp=self.lampStates[lamp].lampOn)
 
     def prepare(self, cmd):
         """Configure a future illumination sequence.
