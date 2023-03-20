@@ -295,7 +295,10 @@ class digitalLoggers(FSMThread, bufferedSocket.EthComm):
 
         # if currently in the go sequence.
         if self.substates.current == 'TRIGGERING':
-            bufferedSocket.EthComm.sendOneCommand(self, 'abort')
+            # Send abort, but do not try to get any bytes from the server in this thread.
+            # We are already getting output in a loop, eg, line 252.
+
+            bufferedSocket.EthComm.sendAll(self, 'abort')
 
         # see ics.utils.fsm.fsmThread.LockedThread
         self.waitForCommandToFinish()
