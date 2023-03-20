@@ -18,11 +18,12 @@ class EthComm(object):
             self.logger = logging.getLogger(f'{host}:{port}')
             self.logger.setLevel(logging.DEBUG)
 
-    def connectSock(self, timeout=3.0):
-        """| Connect socket if self.sock is None.
+    def createSock(self):
+        """Create regular socket object."""
+        return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        :return: - socket
-        """
+    def connectSock(self, timeout=3.0):
+        """Connect socket if self.sock is None."""
         if self.sock is None:
             s = self.createSock()
             s.settimeout(timeout)
@@ -32,14 +33,8 @@ class EthComm(object):
 
         return self.sock
 
-    def createSock(self):
-        return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
     def closeSock(self):
-        """| Close the socket.
-
-        :raise: Exception if closing socket has failed
-        """
+        """Close the socket and delete object."""
         try:
             self.sock.close()
         except:
@@ -48,34 +43,89 @@ class EthComm(object):
         self.sock = None
 
     def sendOneCommand(self, cmdStr, doClose=False, cmd=None):
-        """| Send one command and return one response.
+        """Send one command and return one response.
 
-        :param cmdStr: (str) The command to send.
-        :param doClose: If True (the default), the device socket is closed before returning.
-        :param cmd: on going command
-        :return: reply : the single response string, with EOLs stripped.
-        :raise: IOError : from any communication errors.
+        Parameters
+        ----------
+        cmdStr : str
+            The command to send.
+        doClose : bool
+            If True (the default), the device socket is closed before returning.
+        cmd :
+            ongoing command.
+
+        Returns
+        -------
+        reply : str
+            the single response string, with EOLs stripped.
         """
+        cmd = self.actor.bcast if cmd is None else cmd
 
-        if cmd is None:
-            cmd = self.actor.bcast
-
-        fullCmd = ('%s%s' % (cmdStr, self.EOL)).encode('latin-1')
-        self.logger.debug('sending %r', fullCmd)
-
-        s = self.connectSock()
-
-        try:
-            s.sendall(fullCmd)
-        except Exception as e:
-            self.logger.warn("%s failed to send '%s': %s" % (self.name, fullCmd, e))
-            self.closeSock()
-            raise
-
-        reply = self.getOneResponse(sock=s, cmd=cmd)
+        # add EOL to cmdStr and convert to byte
+        sock = self.sendAll(cmdStr)
+        # get a EOL stripped response as str.
+        reply = self.getOneResponse(sock=sock, cmd=cmd)
 
         if doClose:
             self.closeSock()
+
+        return reply
+
+    def sendAll(self, cmdStr):
+        """Attempt to send data to the socket.
+
+        Parameters
+        ----------
+        cmdStr : str
+            The command to send.
+
+        Returns
+        -------
+        sock : socket.socket
+            the opened socket.
+        """
+        fullCmd = ('%s%s' % (cmdStr, self.EOL)).encode('latin-1')
+        self.logger.debug('sending %r', fullCmd)
+
+        sock = self.connectSock()
+
+        try:
+            sock.sendall(fullCmd)
+        except Exception as e:
+            self.logger.warning("%s failed to send '%s': %s" % (self.name, fullCmd, e))
+            self.closeSock()
+            raise
+
+        return sock
+
+    def getOneResponse(self, sock=None, cmd=None, timeout=None):
+        """Attempt to receive data from the socket.
+
+        Parameters
+        ----------
+        sock : socket.socket
+            current socket.
+        cmd : str
+            ongoing command.
+        timeout : int
+            timeout value.
+
+        Returns
+        -------
+        reply : str
+            stripped reply as string.
+        """
+        if sock is None:
+            sock = self.connectSock()
+
+        ret = self.ioBuffer.getOneResponse(sock=sock, cmd=cmd, timeout=timeout)
+
+        if self.stripTelnet:
+            self.logger.debug('raw received %r', ret)
+            ret = self._stripTelnet(ret)
+
+        reply = ret.strip()
+        self.logger.debug('received %r', reply)
 
         return reply
 
@@ -87,6 +137,15 @@ class EthComm(object):
          - Only reports to .logger.
          - Accepts codes which we do not understand, and always strips those out
            as if they are single byte codes. May or may not be true.
+
+        Parameters
+        ----------
+        s : str
+            input string.
+        Returns
+        -------
+        reply : str
+            stripped string.
         """
         IAC = chr(255)
         NOP = 241
@@ -113,33 +172,11 @@ class EthComm(object):
             self.logger.debug(f'stripping {cmd}.{cmd2}')
             s = s1 + s2
 
-    def getOneResponse(self, sock=None, cmd=None, timeout=None):
-        """| Attempt to receive data from the socket.
-
-        :param sock: socket
-        :param cmd: command
-        :return: reply : the single response string, with EOLs stripped.
-        :raise: IOError : from any communication errors.
-        """
-        if sock is None:
-            sock = self.connectSock()
-
-        ret = self.ioBuffer.getOneResponse(sock=sock, cmd=cmd, timeout=timeout)
-        if self.stripTelnet:
-            self.logger.debug('raw received %r', ret)
-            ret = self._stripTelnet(ret)
-        reply = ret.strip()
-
-        self.logger.debug('received %r', reply)
-
-        return reply
-
 
 class BufferedSocket(object):
     """ Buffer the input from a socket and block it into lines. """
 
-    def __init__(self, name, sock=None, loggerName=None, EOL='\n', timeout=3.0,
-                 logLevel=logging.INFO):
+    def __init__(self, name, sock=None, loggerName=None, EOL='\n', timeout=3.0, logLevel=logging.INFO):
         self.EOL = EOL
         self.sock = sock
         self.name = name
@@ -150,10 +187,10 @@ class BufferedSocket(object):
         self.buffer = ''
 
     def getOutput(self, sock=None, timeout=None, cmd=None):
-        """ Block/timeout for input, then return all (<=1kB) available input. """
-
+        """Block/timeout for input, then return all (<=1kB) available input."""
         if sock is None:
             sock = self.sock
+
         if timeout is None:
             timeout = self.timeout
 
@@ -167,10 +204,10 @@ class BufferedSocket(object):
         return sock.recv(1024).decode('latin-1')
 
     def getOneResponse(self, sock=None, timeout=None, cmd=None, doRaise=False):
-        """ Return the next available complete line. Fetch new input if necessary.
+        """Return the next available complete line. Fetch new input if necessary.
 
-        Args
-        ----
+        Parameters
+        ----------
         sock : socket
            Uses self.sock if not set.
         timeout : float
@@ -178,7 +215,8 @@ class BufferedSocket(object):
 
         Returns
         -------
-        str or None : a single line of response text, with EOL character(s) stripped.
+        ret : str
+            a single line of response text, with EOL character(s) stripped.
         """
         while self.buffer.find(self.EOL) == -1:
             try:
