@@ -213,7 +213,7 @@ class SpsFits:
 
         return allCards
 
-    def genDcbLampCards(self, cmd):
+    def genDcbLampCards(self, cmd, expTime):
         """Generate header cards for dcb lamps.
         Lamp are described by off/on timestamp that accurately track when the lamp switch state.
         The principle is that from those two timestamps and the shutter opening/closing time, you can
@@ -252,7 +252,7 @@ class SpsFits:
             end = max(min(offTime, shutterCloseTime), shutterOpenTime)
 
             # lampTime cannot be greater than expTime.
-            lampTime = min(self.expTime, int(round(end - start)))
+            lampTime = min(expTime, int(round(end - start)))
             lampState = lampTime > 0
 
             return lampState, lampTime
@@ -495,7 +495,7 @@ class SpsFits:
 
         return keepCards
 
-    def finishHeaderKeys(self, cmd, visit, timeCards):
+    def finishHeaderKeys(self, cmd, visit, timeCards, expTime=None):
         """ Finish the header. Should be called just before readout starts. Must not block! """
 
         if cmd is None:
@@ -521,7 +521,7 @@ class SpsFits:
             detId = -1
 
         beamConfigCards = self.getBeamConfigCards(cmd, visit)
-        lampCards = self.genDcbLampCards(cmd)
+        lampCards = self.genDcbLampCards(cmd, expTime)
         spectroCards = self.getSpectroCards(cmd)
         designCards = self.getPfsDesignCards(cmd, exptype)
         mhsCards = self.getMhsCards(cmd)
