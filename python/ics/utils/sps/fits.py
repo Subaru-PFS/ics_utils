@@ -220,12 +220,30 @@ class SpsFits:
         infer the state and how long the lamp was actually used during the exposure.
         """
 
+        try:
+            enuModel = self.actor.enuModel
+            (visit, integrationStartedAt, openReturnedAt,
+             integrationEndedAt, closeReturnedAt) = enuModel.keyVarDict['shutterTimings'].getValue()
+        except Exception as e:
+            cmd.warn(f'text="failed to fetch shutterTimings: {e}')
+            visit = 0
+            integrationStartedAt = openReturnedAt = ''
+            integrationEndedAt = closeReturnedAt = ''
+
+        if not openReturnedAt:
+            nowTS = pfsTime.Time.now().isoformat()
+            cmd.warn(f'text="shutterTimings blank, setting to {nowTS}')
+            openReturnedAt = nowTS
+            closeReturnedAt = nowTS
+
+        # convert times to floats
+        shutterOpenTime = pfsTime.Time.fromisoformat(openReturnedAt).timestamp()
+        shutterCloseTime = pfsTime.Time.fromisoformat(closeReturnedAt).timestamp()
+
         def inferLampStateAndTime(lampKey, dcbModel):
             """Translate on/off timestamp to lamp state and duration"""
             __, offIsoTime, onIsoTime = dcbModel.keyVarDict[lampKey].getValue()
             # converting all time to comparable floats.
-            shutterOpenTime = pfsTime.Time.fromisoformat(self.obstime).timestamp()
-            shutterCloseTime = pfsTime.timestamp()
             offTime = pfsTime.Time.fromisoformat(offIsoTime).timestamp()
             onTime = pfsTime.Time.fromisoformat(onIsoTime).timestamp()
 
