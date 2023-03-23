@@ -12,8 +12,8 @@ if false then
 end
 
 -- outlets config for dcb1
-local lnames={"halogen", "neon", "hgar", "argon", "krypton"}
-local loutlets={ 1, 2, 3, 4, 5}
+local lnames={"halogen", "outlet02", "hgar", "argon", "krypton", "neon", "outlet07", "outlet08"}
+local loutlets={ 1, 2, 3, 4, 5, 6, 7, 8}
 
 
 return {address = address, port = port, lnames = lnames, loutlets = loutlets}
