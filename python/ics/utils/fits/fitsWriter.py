@@ -10,7 +10,7 @@ import threading
 import fitsio
 
 class FitsWriter(object):
-    def __init__(self, inQ, outQ, doCompress=True):
+    def __init__(self, inQ, outQ, doCompress=True, rampRoot=None):
         """Buffer FITS file writes.
 
         Args
@@ -19,6 +19,10 @@ class FitsWriter(object):
             Queue we receive commands on
         outQ : `Queue`
             Queue we report success/failure to.
+        doCompress : `bool`
+            If True, use RICE compression
+        rampRoot : `path-like`
+            If set, arrange to save physical ramp files in this directory
 
         Queue commands are:
         'create', path, header : create new FITS file, with given PHDU
@@ -38,15 +42,16 @@ class FitsWriter(object):
         self.inQ = inQ
         self.outQ = outQ
         self.doCompress = doCompress
+        self.rampRoot = rampRoot
 
         self.currentPath = None
         self.tempPath = None
         self.currentFits = None
 
-    @staticmethod
-    def setupFitsWriter(inQ, outQ):
+    @classmethod
+    def setupFitsWriter(cls, inQ, outQ, doCompress=True, rampRoot=None):
         """Convenience wrapper for Process creation."""
-        fw = FitsWriter(inQ, outQ)
+        fw  = cls(inQ, outQ, doCompress=doCompress, rampRoot=rampRoot)
         fw.run()
 
     def report(self, command, *, path=None, hduId=None, status=None, errorDetails=None):
@@ -63,6 +68,47 @@ class FitsWriter(object):
     def reportFailure(self, command, *, path=None, hduId=None, errorDetails='ERROR'):
         self.report(command, path=path, hduId=hduId, status='ERROR', errorDetails=errorDetails)
 
+    def _makePfsDir(self, dirpath):
+        """Create a well-configured directory.
+
+        Slightly over-tricky and innards-aware.
+
+        If self.rampRoot is set, we want to save the actual ramp files
+        into a separate directory (filesystem), and turn .dirpath
+        into a symlink.
+
+        Args:
+        -----
+        dirpath : `pathlib.Path`
+           the final directory name we want.
+           In the form: f'{root}/{date}/ramps'
+
+        if self.rampRoot, then make f'{self.rampRoot}/{date}' and link to that.
+
+        Args
+        ----
+        dirpath : `pathlib.Path`
+          the name of the directory we need to create.
+        """
+
+        # Should work whether we are a directory or a symlink
+        if dirpath.exists():
+            return
+
+        if self.rampRoot:
+            # We want the following directories and links.
+            #   /data/raw/$date/ramps/ -> /data/ramps/$date/
+            #
+            rawDateDir = dirpath.parent
+            date = dirpath.parts[-2]
+            realDir = pathlib.Path(self.rampRoot, date)
+
+            realDir.mkdir(mode=0o755, parents=True, exist_ok=True)
+            rawDateDir.mkdir(mode=0o755, parents=True, exist_ok=True)
+            dirpath.symlink_to(realDir)
+        else:
+            dirpath.mkdir(mode=0o755, parents=True, exist_ok=True)
+
     def create(self, path, header, useTemp=True):
         """Create a new FITS file and generate the PHDU
 
@@ -77,9 +123,10 @@ class FitsWriter(object):
         """
         try:
             self.currentPath = path
-            if useTemp:
-                path = pathlib.Path(path)
+            path = pathlib.Path(path)
+            self._makePfsDir(path.parent)
 
+            if useTemp:
                 self.tempPath = pathlib.Path(path.parent, '.'+path.name)
                 self.currentFits = fitsio.FITS(self.tempPath, mode='rw')
             else:
@@ -312,13 +359,15 @@ class FitsCatcher(threading.Thread):
         self.replyQ.put(dict(command='ENDCMD'))
 
 class FitsBuffer(object):
-    def __init__(self):
+    def __init__(self, doCompress=True, rampRoot=None):
         """Create a process to write FITS files """
         self.logger = logging.getLogger(self.__class__.__name__)
         self.cmdQ = Queue()
         self.replyQ = Queue()
         self.catcher = None
-        self._p = Process(target=FitsWriter.setupFitsWriter, args=(self.cmdQ, self.replyQ))
+        self._p = Process(target=FitsWriter.setupFitsWriter,
+                          args=(self.cmdQ, self.replyQ),
+                          kwargs=dict(doCompress=doCompress, rampRoot=rampRoot))
         self.logger.info(f'starting FitsWriter {self._p}')
         self._p.start()
 
