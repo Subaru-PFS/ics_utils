@@ -198,12 +198,14 @@ class Cam(SpectroIds, Part):
         return self.specModule.lightSource
 
     @property
+    def default(self):
+        """camera will be added in the default camera list."""
+        return self.state == 'sci'
+
+    @property
     def operational(self):
-        """sci/eng is considered as an operational state with dcb-dcb2, but not for other sources."""
-        if self.lightSource.isDcb:
-            return self.state in ['sci', 'eng']
-        else:
-            return self.state == 'sci'
+        """sci/eng is considered as an operational state."""
+        return self.state in ['sci', 'eng']
 
     def dependencies(self, seqObj):
         """Retrieve the spectrograph dependencies given the data acquisition sequence type.
