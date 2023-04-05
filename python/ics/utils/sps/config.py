@@ -75,11 +75,6 @@ class SpecModule(SpectroIds):
         return [part for part in self.parts if part.operational]
 
     @property
-    def opeCams(self):
-        """Camera considered operational, Will be exposed if no arm/camera are specified."""
-        return [cam for cam in self.cams.values() if cam.operational]
-
-    @property
     def genSpecParts(self):
         """Generate string that describe the spectrograph module parts."""
         return f'{self.specName}Parts={",".join([part.state for part in self.parts])}'
@@ -157,6 +152,28 @@ class SpecModule(SpectroIds):
         specModule.assign(*specParts)
 
         return specModule
+
+    def getCams(self, filter='default'):
+        """Return all camera objects given a filter.
+
+        Parameters
+        ----------
+        filter : `str`
+            how to filter, if default return all camera described as sci.
+
+        Returns
+        -------
+        cam : `ics.utils.sps.part.Cam`
+            Cam object.
+        """
+        if filter == 'default':
+            cams = [cam for cam in self.cams.values() if cam.default]
+        elif filter == 'operational':
+            cams = [cam for cam in self.cams.values() if cam.operational]
+        else:
+            raise ValueError(f'unknown filter:{filter}')
+
+        return cams
 
     def assign(self, bcu='none', rcu='none', ncu='none', bsh='none', rsh='none', fca='none', rda='none', bia='none',
                iis='none'):
@@ -406,10 +423,10 @@ class SpsConfig(dict):
         specNames = spsModel.keyVarDict['specModules'].getValue()
         return cls([SpecModule.fromModel(specName, spsModel) for specName in specNames])
 
-    def identify(self, cams=None, arms=None, specNums=None):
+    def identify(self, cams=None, arms=None, specNums=None, filter='default'):
         """Identify which camera(s) to expose from outer product(specNums*arm) or cams.
-        If no specNums if provided then we're assuming modules labelled as sps.
-        If no arm if provided then we're assuming all arms.
+        If no specNums is provided then we're assuming modules labelled as sps.
+        If no arm is provided then we're assuming all arms.
 
         Parameters
         ----------
@@ -427,7 +444,7 @@ class SpsConfig(dict):
         """
         if cams is None:
             specModules = self.selectModules(specNums)
-            cams = self.selectArms(specModules, arms)
+            cams = self.selectArms(specModules, arms, filter=filter)
         else:
             cams = [self.selectCam(camName) for camName in cams]
 
@@ -459,7 +476,7 @@ class SpsConfig(dict):
 
         return specModules
 
-    def selectArms(self, specModules, arms=None):
+    def selectArms(self, specModules, arms=None, filter='default'):
         """Return the outer product between provided specModules and arms.
         If no arms is provided, then assuming all arms.
 
@@ -478,7 +495,7 @@ class SpsConfig(dict):
         if arms is not None:
             cams = [specModule.camera(arm) for specModule in specModules for arm in arms]
         else:
-            cams = sum([specModule.opeCams for specModule in specModules], [])
+            cams = sum([specModule.getCams(filter=filter) for specModule in specModules], [])
 
         return cams
 
@@ -499,8 +516,8 @@ class SpsConfig(dict):
             raise ValueError(f'{camName} is not a valid cam')
 
         arm, specNum = camName[0], int(camName[1])
+        [cam] = self.identify(specNums=[specNum], arms=[arm], filter='operational')
 
-        [cam] = self.identify(specNums=[specNum], arms=[arm])
         return cam
 
     def declareLightSource(self, lightSource, specNum=None, spsData=None):
