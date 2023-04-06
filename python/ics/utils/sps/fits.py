@@ -29,7 +29,7 @@ armSpecs = dict(b=dict(wavemin=380.0,
                        wavemid=1107.0,
                        fringe=1007.0))
 
-def getPfsConfigCards(actor, cmd, visit):
+def getPfsConfigCards(actor, cmd, visit, expType='test'):
     """Return the required PHDU cards for the pfsConfig files.
 
     This is likely to evolve. Specifically, we will sometimes not have a single PROP-ID.
@@ -42,6 +42,8 @@ def getPfsConfigCards(actor, cmd, visit):
        who we report problems to
     visit : `int`
        the PFS visit for this pfsConfig
+    expType : `str`
+       one of the standard exposure types.
 
     Returns
     -------
@@ -59,6 +61,11 @@ def getPfsConfigCards(actor, cmd, visit):
     observatory, telescope, instrument = [str(v) for v in gen2['inst_ids'].getValue()]
     proposal, mode, allocation, observers = [str(v) for v in gen2['program'].getValue()]
 
+    # Adapt to NAOJ conventions
+    if expType.lower() == 'arc':
+        expType = 'comparison'
+    expType = f'meta-{expType}'.upper()
+
     # We would like to know when this config was used. No system
     # actually knows for sure, so we snag a timestamp now. The
     # corresponding acquisition will be after this. Must be UTC.
@@ -70,11 +77,13 @@ def getPfsConfigCards(actor, cmd, visit):
 
     cards['FRAMEID'] = (frameId, 'Sequence number in archive')
     cards['EXP-ID'] = (expId, 'Grouping ID for PFS visit')
+    cards['DATA-TYP'] = (expType, 'Contains NAOJ data type for the image file(s).')
     cards['TELESCOP'] = (telescope, 'Telescope name')
     cards['INSTRUME'] = (instrument, 'Instrument name')
     cards['OBSERVER'] = (observers, 'Name(s) of observer(s)')
     cards['PROP-ID'] = (proposal, 'Proposal ID')
     cards['DATE-OBS'] = (dayStr, '[YMD] pfsConfig creation date, UTC')
+    cards['EQUINOX'] = ('J2000', 'Fixed telescope equinox')
 
     return cards
 
