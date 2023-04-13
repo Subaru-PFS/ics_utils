@@ -235,6 +235,24 @@ class FitsWriter(object):
             self.reportFailure('WRITE', path=self.currentPath, hduId=hduId,
                                errorDetails=f'ERROR writing {hduId}: {e}')
 
+    def amend(self, cards):
+        """Amend the PHDU with some cards
+
+        Parameters
+        ----------
+        header : fitsio-compliant cardlist
+            The header cards for this HDU
+        """
+
+        try:
+            phdu = self.currentFits[0]
+            phdu.write_keys(cards)
+            self.reportSuccess('AMEND', path=self.currentPath)
+        except Exception as e:
+            self.logger.warning(f'failed to update phdu for {self.currentPath}: {e}')
+            self.reportFailure('AMEND', path=self.currentPath,
+                               errorDetails=f'ERROR writing PHDU: {e}')
+
     def close(self):
         """Actually close out any open FITS file.
 
@@ -301,6 +319,12 @@ class FitsWriter(object):
                     self.write(hduId, extname, data, header)
                     t1 = time.time()
                     self.logger.info(f'fitsio HDU write of {self.currentPath} {hduId} took {t1-t0:0.4f}s')
+                elif cmd == 'amend':
+                    cards, = cmdArgs
+                    t0 = time.time()
+                    self.amend(cards)
+                    t1 = time.time()
+                    self.logger.info(f'fitsio amending of {self.currentPath} PHDU took {t1-t0:0.4f}s')
                 else:
                     raise ValueError(f'unknown command: {cmd} {cmdArgs}')
             except Exception as e:
@@ -348,6 +372,8 @@ class FitsCatcher(threading.Thread):
                 self.caller.closedFits(reply)
             elif cmd == 'WRITE':
                 self.caller.wroteHdu(reply)
+            elif cmd == 'AMEND':
+                self.caller.amendedPHDU(reply)
             elif cmd == 'CREATE':
                 self.caller.createdFits(reply)
             elif cmd == 'SHUTDOWN' or cmd == 'ENDCMD':
@@ -391,6 +417,7 @@ class FitsBuffer(object):
         if path is None:
             raise ValueError("must provide a pathname to create a FITS file.")
         if self.catcher is None:
+            self.logger.info('creating FitsCatcher thread')
             self.catcher = FitsCatcher(caller, self.replyQ)
             self.catcher.start()
         else:
@@ -414,6 +441,13 @@ class FitsBuffer(object):
         """
         data = FitsWriter.shareData(data=data)
         self.cmdQ.put(('write', hduId, extname, data, header))
+
+    def amendPHDU(self, cards):
+        """Amend the PHDU with the given cards.
+
+        God save you if the PDU needs to be extended.
+        """
+        self.cmdQ.put(('amend', cards))
 
     def finishFile(self):
         """Finalize our FITS file.
@@ -447,6 +481,8 @@ class TestCatcher(object):
         self.logger.info(f'{self.name} createdFits: {reply}')
     def wroteHdu(self, reply):
         self.logger.info(f'{self.name} wroteHdu: {reply}')
+    def amendedPHDU(self, reply):
+        self.logger.info(f'{self.name} amendedPHDU: {reply}')
     def closedFits(self, reply):
         self.logger.info(f'{self.name} closedFits: {reply}')
     def fitsFailure(self, reply):
