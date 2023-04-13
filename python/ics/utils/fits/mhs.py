@@ -210,7 +210,12 @@ def cardFormatsForModel(model):
                     if not hasattr(kvt, 'FITS') or kvt.FITS is None:
                         continue
 
-                    shortCard, longCard = kvt.FITS
+                    shortCard, longCard, *rest = kvt.FITS
+                    if len(rest) > 0:
+                        reprFmt = rest[0]
+                    else:
+                        reprFmt = None
+                        
                     if longCard == '':
                         longCard = shortCard
                     if shortCard.startswith('W_') and not longCard.startswith('W_'):
@@ -237,12 +242,13 @@ def cardFormatsForModel(model):
                     else:
                         values = ''
 
-                    reprFmt = kvt.strFmt
-                    if not reprFmt:
+                    if reprFmt is None:
                         if baseType == int:
-                            reprFmt = '%d'
+                            reprFmt = '%10d'  # Good enough for 2^32
                         elif baseType == float:
-                            reprFmt = "%-15G"
+                            reprFmt = "%0.3f"
+                        elif baseType == str:
+                            reprFmt = "%-8s"  # Handles FITS minimum string: 'short   '
                         else:
                             reprFmt = ""
 
