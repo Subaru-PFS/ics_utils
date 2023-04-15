@@ -1,10 +1,14 @@
 """ SPS-specific FITS routines. """
 
 import datetime
+import logging
+
+import astropy.time as astroTime
 
 from ics.utils.fits import wcs
 from ics.utils.fits import mhs as fitsMhs
 from ics.utils.fits import utils as fitsUtils
+import ics.utils.time as pfsTime
 
 # These should come from some proper data product, but I would be
 # *very* surprised if the values matter much. They certainly do
@@ -113,7 +117,8 @@ def getSpsSpectroCards(arm):
     disperserName = f'VPH_{arm}_{int(specs["fringe"])}_{int(specs["wavemid"])}nm'
     cards.append(dict(name='DISPAXIS', value=(1 if arm == 'n' else 2),
                       comment='Dispersion axis (along %s)' % ('rows' if arm == 'n' else 'columns')))
-    cards.append(dict(name='DISPERSR', value=disperserName, comment='Disperser name (arm_fringe/mm_centralNm)'))
+    cards.append(dict(name='DISPERSR', value=disperserName,
+                      comment='Disperser name (arm_fringe/mm_centralNm)'))
     cards.append(dict(name='WAV-MIN', value=specs['wavemin'], comment='[nm] Blue edge of the bandpass'))
     cards.append(dict(name='WAV-MAX', value=specs['wavemax'], comment='[nm] Red edge of the bandpass'))
     cards.append(dict(name='WAVELEN', value=specs['wavemid'], comment='[nm] Middle of the bandpass'))
@@ -124,14 +129,11 @@ def getSpsSpectroCards(arm):
 
     return cards
 
-def getSpsWcs(arm):
-    """Return a Subaru-compliant WCS solution."""
-
-    raise NotImplementedError("Sorry, no SPS WCS yet!")
-
 class SpsFits:
     def __init__(self, actor, cmd, exptype):
         self.actor = actor
+        self.logger = logging.getLogger('spsFits')
+        self.logger.setLevel(logging.INFO)
         self.cmd = cmd
         self.exptype = exptype
 
@@ -185,6 +187,11 @@ class SpsFits:
         """Return our lightsource (pfi, sunss, dcb, dcb2). """
 
         sm = self.actor.ids.specNum
+        if sm > 4: # JHU test cryostats
+            lightSource = self.actor.actorConfig.get('hackLightSource', None)
+            if lightSource is not None:
+                cmd.warn(f'text="HACK lightsource: {lightSource}"')
+                return lightSource.lower()
         try:
             spsModel = self.actor.models['sps'].keyVarDict
             lightSource = spsModel[f'sm{sm}LightSource'].getValue()
@@ -211,6 +218,121 @@ class SpsFits:
 
         return allCards
 
+    def genDcbLampCards(self, cmd, expTime):
+        """Generate header cards for dcb lamps.
+        Lamp are described by off/on timestamp that accurately track when the lamp switch state.
+        The principle is that from those two timestamps and the shutter opening/closing time, you can
+        infer the state and how long the lamp was actually used during the exposure.
+        """
+
+        try:
+            enuModel = self.actor.enuModel
+            (visit, integrationStartedAt, openReturnedAt,
+             integrationEndedAt, closeReturnedAt) = enuModel.keyVarDict['shutterTimings'].getValue()
+        except Exception as e:
+            cmd.warn(f'text="failed to fetch shutterTimings: {e}')
+            visit = 0
+            integrationStartedAt = openReturnedAt = ''
+            integrationEndedAt = closeReturnedAt = ''
+
+        if not openReturnedAt:
+            now = pfsTime.Time.now()
+            maxLampTime = astroTime.TimeDelta(300, format='sec')
+            closeReturnedAt = now.isoformat()
+            openReturnedAt = (now-maxLampTime).isoformat()
+            cmd.warn(f'text="shutterTimings blank, setting to {openReturnedAt}..{closeReturnedAt}')
+
+        # convert times to floats
+        shutterOpenTime = pfsTime.Time.fromisoformat(openReturnedAt).timestamp()
+        shutterCloseTime = pfsTime.Time.fromisoformat(closeReturnedAt).timestamp()
+
+        def inferLampStateAndTime(lampKey, dcbModel):
+            """Translate on/off timestamp to lamp state and duration"""
+            __, offIsoTime, onIsoTime = dcbModel.keyVarDict[lampKey].getValue()
+            # converting all time to comparable floats.
+            offTime = pfsTime.Time.fromisoformat(offIsoTime).timestamp()
+            onTime = pfsTime.Time.fromisoformat(onIsoTime).timestamp()
+
+            offTime = shutterCloseTime if offTime < onTime else offTime
+            start = min(max(onTime, shutterOpenTime), shutterCloseTime)
+            end = max(min(offTime, shutterCloseTime), shutterOpenTime)
+
+            # lampTime cannot be greater than expTime.
+            lampTime = int(round(end - start))
+            if expTime is not None:
+                lampTime = min(expTime, lampTime)
+
+            lampState = lampTime > 0
+
+            return lampState, lampTime
+
+        lampCards = []
+        lightSource = self.getLightSource(cmd)
+
+        if lightSource in {'dcb', 'dcb2'}:
+            try:
+                dcbModel = self.actor.models[lightSource]
+            except Exception as e:
+                cmd.warn(f'text="failed to get {lightSource} model, no lampCard could be retrieved : {e}"')
+                return lampCards
+
+            for key, lampStateKey, lampTimeKey in [('halogen', 'W_AITQTH', 'W_CLQTHT'),
+                                                   ('neon', 'W_AITNEO', 'W_CLNEOT'),
+                                                   ('hgar', 'W_AITHGA', 'W_CLHGAT'),
+                                                   ('krypton', 'W_AITKRY', 'W_CLKRYT'),
+                                                   ('argon', 'W_AITARG', 'W_CLARGT'),
+                                                   ('xenon', 'W_AITXEN', 'W_CLXENT')]:
+
+                try:
+                    lampState, lampTime = inferLampStateAndTime(key, dcbModel)
+                    lampCards.append(dict(name=lampStateKey, value=lampState,
+                                          comment=f'{key.upper()} lamp state'))
+                    lampCards.append(dict(name=lampTimeKey, value=lampTime,
+                                          comment=f'[s] {key.upper()} lamp on time'))
+                except Exception as e:
+                    cmd.warn(f'text="failed to get {lightSource}.{key} key :{e}"')
+
+        return lampCards
+
+    def genPfiLampCards(self, cmd, expTime):
+        """Generate header cards for pfilamps or telescope ring lamps.
+
+        Until the pfilamps actor is switched to DCB-style timing, just generate ring lamp
+        QTH cards. The pfilamps cards are taken from the actorkeys dictionary.
+        """
+
+        lampCards = []
+        lightSource = self.getLightSource(cmd)
+
+        try:
+            gen2Model = self.actor.models['gen2']
+            ringLamps = gen2Model.keyVarDict['ringLamps'].getValue()
+        except Exception as e:
+            ringLamps = 0.0, 0.0, 0.0, 0.0
+            cmd.warn(f'text="failed to fetch gen2.ringLamps key: {e}"')
+
+        # This could be a gen2 actorkey
+        lampsOn = any([lamp > 50 for lamp in ringLamps])
+        lampCards.append(dict(name='W_RNGQTH', value=lampsOn,
+                              comment='HSC ring lamps state'))
+        lampCards.append(dict(name='W_RNGLVL', value=sum(ringLamps)/4,
+                              comment='[V] Average HSC ring lamp level'))
+
+        if lampsOn and lightSource in {'pfi', 'sunss'}:
+            lampCards.append(dict(name='W_AITQTH', value=True, comment='(HSC) quartz lamp state'))
+            lampCards.append(dict(name='W_CLQTHT', value=expTime, comment='[s] HSC ring lamp time'))
+
+        return lampCards
+
+    def genLampCards(self, cmd, expTime):
+        """Return all lamp cards, based on the correct source. """
+
+        lampCards = []
+        lampCards.extend(self.genDcbLampCards(cmd, expTime))
+        lampCards.extend(self.genPfiLampCards(cmd, expTime))
+
+        return lampCards
+
     def getSpectroCards(self, cmd):
         """Return the Subaru-specific spectroscopy cards.
 
@@ -226,44 +348,45 @@ class SpsFits:
 
         return cards
 
-    def getPfsDesignCards(self, cmd):
+    def getPfsDesignCards(self, cmd, imtype):
         """Return the pfsDesign-associated cards.
 
         Knows about PFI, DCB and SuNSS cards. Uses the sps.lightSources key
         to tell us which to use.
+
+        Manually sets the OBJECT card if the lightSource is not the PFI.
 
         """
 
         cards = []
 
         lightSource = self.getLightSource(cmd)
+
         if lightSource == 'sunss':
-            designId = 0xdeadbeef
             objectCard = 'SuNSS'
         elif lightSource == 'pfi':
-            try:
-                model = self.actor.models['iic'].keyVarDict
-                designId = model['designId'].getValue()
-            except Exception as e:
-                cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
-                designId = 9998
             # Let the gen2 keyword stay
             objectCard = None
         elif lightSource in {'dcb', 'dcb2'}:
-            try:
-                model = self.actor.models[lightSource].keyVarDict
-                designId = model['designId'].getValue()
-            except Exception as e:
-                cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
-                designId = 9998
             objectCard = f'{lightSource}'
         else:
             cmd.warn(f'text="unknown lightsource ({lightSource}) for a designId')
-            designId = 9999
             objectCard = 'unknown'
+
+        try:
+            model = self.actor.models['iic'].keyVarDict
+            designId = model['designId'].getValue()
+        except Exception as e:
+            cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
+            designId = 9998
+
+        # Completely overwrite the OBJECT card if we do not open the shutter.
+        if imtype in {'BIAS', 'DARK'}:
+            objectCard = 'dark'
 
         if objectCard is not None:
             cards.append(dict(name='OBJECT', value=objectCard, comment='Internal id for this light source'))
+
         cards.append(dict(name='W_PFDSGN', value=int(designId), comment=f'pfsDesign, from {lightSource}'))
         cards.append(dict(name='W_LGTSRC', value=str(lightSource), comment='Light source for this module'))
         return cards
@@ -335,13 +458,17 @@ class SpsFits:
 
         allCards = []
         allCards.append(dict(name='COMMENT', value='################################ Beam configuration'))
-        allCards.append(dict(name='W_SBEMDT', value=float(beamConfigDate), comment='[day] Beam configuration time'))
+        allCards.append(dict(name='W_SBEMDT', value=float(beamConfigDate),
+                             comment='[day] Beam configuration time'))
         allCards.append(dict(name='W_SFPADT', value=float(fpaDate), comment='[day] Last FPA move time'))
-        allCards.append(dict(name='W_SHEXDT', value=float(hexapodDate), comment='[day] Last hexapod move time'))
+        allCards.append(dict(name='W_SHEXDT', value=float(hexapodDate),
+                             comment='[day] Last hexapod move time'))
         if haveDcb:
-            allCards.append(dict(name='W_SDCBDT', value=float(dcbDate), comment='[day] Last DCB configuration time'))
+            allCards.append(dict(name='W_SDCBDT', value=float(dcbDate),
+                                 comment='[day] Last DCB configuration time'))
         if isRed:
-            allCards.append(dict(name='W_SGRTDT', value=float(gratingDate), comment='[day] Last grating move time'))
+            allCards.append(dict(name='W_SGRTDT', value=float(gratingDate),
+                                 comment='[day] Last grating move time'))
 
         return allCards
 
@@ -359,7 +486,7 @@ class SpsFits:
 
         cmd.debug(f'text="fetching MHS cards from {modelNames}"')
         cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
-                                          modelNames=modelNames,shortNames=True)
+                                          modelNames=modelNames, shortNames=True)
         cmd.debug('text="fetched %d MHS cards..."' % (len(cards)))
 
         return cards
@@ -391,8 +518,33 @@ class SpsFits:
 
         return cards
 
-    def finishHeaderKeys(self, cmd, visit, timeCards):
-        """ Finish the header. Called just before readout starts. Must not block! """
+    def validateCards(self, cmd, cards):
+        """Either fix or remove invalid cards.
+
+        Currently:
+          - require that each card value is a primitive python type.
+
+        Args
+        ----
+        cards : list of fitsio-compliant card dicts.
+           the cards to clean up.
+
+        Returns
+        -------
+        cards : list of fitsio-compliant card dicts.
+           the cleaned up cards.
+        """
+        keepCards = []
+        for c_i, c in enumerate(cards):
+            if not isinstance(c['value'], (int, bool, float, str)):
+                cmd.warn(f'text="bad card: {c}')
+            else:
+                keepCards.append(c)
+
+        return keepCards
+
+    def finishHeaderKeys(self, cmd, visit, timeCards, expTime=None):
+        """ Finish the header. Should be called just before readout starts. Must not block! """
 
         if cmd is None:
             cmd = self.cmd
@@ -417,10 +569,11 @@ class SpsFits:
             detId = -1
 
         beamConfigCards = self.getBeamConfigCards(cmd, visit)
+        lampCards = self.genLampCards(cmd, expTime)
         spectroCards = self.getSpectroCards(cmd)
-        designCards = self.getPfsDesignCards(cmd)
-        endCards = self.getEndInstCards(cmd)
+        designCards = self.getPfsDesignCards(cmd, exptype)
         mhsCards = self.getMhsCards(cmd)
+        endCards = self.getEndInstCards(cmd)
 
         # We might be overriding the Subaru/gen2 OBJECT.
         fitsUtils.moveCard(designCards, mhsCards, 'OBJECT')
@@ -429,7 +582,7 @@ class SpsFits:
         allCards.append(dict(name='DATA-TYP', value=exptype, comment='Subaru-style exposure type'))
         allCards.append(dict(name='FRAMEID', value=f'PFSA{visit:06d}00',
                              comment='Sequence number in archive'))
-        allCards.append(dict(name='EXP-ID', value=f'PFSE00{visit:06d}',
+        allCards.append(dict(name='EXP-ID', value=f'PFSE{visit:08d}',
                              comment='PFS exposure visit number'))
         allCards.append(dict(name='DETECTOR', value=detectorId, comment='Name of the detector/CCD'))
         allCards.append(dict(name='GAIN', value=gain, comment='[e-/ADU] AD conversion factor'))
@@ -446,21 +599,17 @@ class SpsFits:
         allCards.append(dict(name='W_SITE', value=self.actor.ids.site,
                              comment='PFS DAQ location: Subaru, Jhu, Lam, Asiaa'))
         allCards.extend(designCards)
+        allCards.extend(spectroCards)
 
         allCards.append(dict(name='COMMENT', value='################################ Time cards'))
         allCards.extend(timeCards)
 
         allCards.extend(mhsCards)
+        allCards.extend(lampCards)  # Might replace DCBx cards. In place, I believe.
+
         allCards.extend(endCards)
-        # allCards.extend(self.headerCards)
         allCards.extend(beamConfigCards)
 
-        keepCards = []
-        for c_i, c in enumerate(allCards):
-            if not isinstance(c['value'], (int, bool, float, str)):
-                cmd.warn(f'text="bad card: {c}')
-            else:
-                keepCards.append(c)
-        allCards = keepCards
+        allCards = self.validateCards(cmd, allCards)
 
         return allCards

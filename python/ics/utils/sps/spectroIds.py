@@ -28,7 +28,7 @@ def idFromHostname(hostname=None):
 def getSite():
     """ Return the site name. Extracted from a DNS TXT record. """
 
-    defaultSite = 'Z'
+    defaultSite = 'S'
 
     import dns.resolver
     try:
