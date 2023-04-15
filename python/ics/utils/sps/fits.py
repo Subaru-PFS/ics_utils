@@ -285,6 +285,45 @@ class SpsFits:
 
         return lampCards
 
+    def genPfiLampCards(self, cmd, expTime):
+        """Generate header cards for pfilamps or telescope ring lamps.
+
+        Until the pfilamps actor is switched to DCB-style timing, just generate ring lamp
+        QTH cards. The pfilamps cards are taken from the actorkeys dictionary.
+        """
+
+        lampCards = []
+        lightSource = self.getLightSource(cmd)
+
+        try:
+            gen2Model = self.actor.models['gen2']
+            ringLamps = gen2Model.keyVarDict['ringLamps'].getValue()
+        except Exception as e:
+            ringLamps = 0.0, 0.0, 0.0, 0.0
+            cmd.warn(f'text="failed to fetch gen2.ringLamps key: {e}"')
+
+        # This could be a gen2 actorkey
+        lampsOn = any([lamp > 50 for lamp in ringLamps])
+        lampCards.append(dict(name='W_RNGQTH', value=lampsOn,
+                              comment='HSC ring lamps state'))
+        lampCards.append(dict(name='W_RNGLVL', value=sum(ringLamps)/4,
+                              comment='[V] Average HSC ring lamp level'))
+
+        if lampsOn and lightSource in {'pfi', 'sunss'}:
+            lampCards.append(dict(name='W_AITQTH', value=True, comment='(HSC) quartz lamp state'))
+            lampCards.append(dict(name='W_CLQTHT', value=expTime, comment='[s] HSC ring lamp time'))
+
+        return lampCards
+
+    def genLampCards(self, cmd, expTime):
+        """Return all lamp cards, based on the correct source. """
+
+        lampCards = []
+        lampCards.extend(self.genDcbLampCards(cmd, expTime))
+        lampCards.extend(self.genPfiLampCards(cmd, expTime))
+
+        return lampCards
+
     def getSpectroCards(self, cmd):
         """Return the Subaru-specific spectroscopy cards.
 
@@ -521,7 +560,7 @@ class SpsFits:
             detId = -1
 
         beamConfigCards = self.getBeamConfigCards(cmd, visit)
-        lampCards = self.genDcbLampCards(cmd, expTime)
+        lampCards = self.genLampCards(cmd, expTime)
         spectroCards = self.getSpectroCards(cmd)
         designCards = self.getPfsDesignCards(cmd, exptype)
         mhsCards = self.getMhsCards(cmd)
