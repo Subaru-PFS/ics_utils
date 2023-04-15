@@ -1,6 +1,9 @@
 """ SPS-specific FITS routines. """
 
 import datetime
+import logging
+
+import astropy.time as astroTime
 
 from ics.utils.fits import wcs
 from ics.utils.fits import mhs as fitsMhs
@@ -129,6 +132,8 @@ def getSpsSpectroCards(arm):
 class SpsFits:
     def __init__(self, actor, cmd, exptype):
         self.actor = actor
+        self.logger = logging.getLogger('spsFits')
+        self.logger.setLevel(logging.INFO)
         self.cmd = cmd
         self.exptype = exptype
 
@@ -231,10 +236,11 @@ class SpsFits:
             integrationEndedAt = closeReturnedAt = ''
 
         if not openReturnedAt:
-            nowTS = pfsTime.Time.now().isoformat()
-            cmd.warn(f'text="shutterTimings blank, setting to {nowTS}')
-            openReturnedAt = nowTS
-            closeReturnedAt = nowTS
+            now = pfsTime.Time.now()
+            maxLampTime = astroTime.TimeDelta(300, format='sec')
+            closeReturnedAt = now.isoformat()
+            openReturnedAt = (now-maxLampTime).isoformat()
+            cmd.warn(f'text="shutterTimings blank, setting to {openReturnedAt}..{closeReturnedAt}')
 
         # convert times to floats
         shutterOpenTime = pfsTime.Time.fromisoformat(openReturnedAt).timestamp()
@@ -252,7 +258,10 @@ class SpsFits:
             end = max(min(offTime, shutterCloseTime), shutterOpenTime)
 
             # lampTime cannot be greater than expTime.
-            lampTime = min(expTime, int(round(end - start)))
+            lampTime = int(round(end - start))
+            if expTime is not None:
+                lampTime = min(expTime, lampTime)
+
             lampState = lampTime > 0
 
             return lampState, lampTime
