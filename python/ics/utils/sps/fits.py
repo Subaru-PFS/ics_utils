@@ -87,7 +87,7 @@ def getPfsConfigCards(actor, cmd, visit, expType='test'):
     cards['OBSERVER'] = (observers, 'Name(s) of observer(s)')
     cards['PROP-ID'] = (proposal, 'Proposal ID')
     cards['DATE-OBS'] = (dayStr, '[YMD] pfsConfig creation date, UTC')
-    cards['EQUINOX'] = ('J2000', 'Fixed telescope equinox')
+    cards['EQUINOX'] = (2000.0, '[year] Fixed telescope equinox')
 
     return cards
 
