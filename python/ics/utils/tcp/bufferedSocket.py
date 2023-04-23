@@ -125,7 +125,8 @@ class EthComm(object):
             ret = self._stripTelnet(ret)
 
         reply = ret.strip()
-        self.logger.debug('received %r', reply)
+        if reply:
+            self.logger.debug('received %r', reply)
 
         return reply
 
