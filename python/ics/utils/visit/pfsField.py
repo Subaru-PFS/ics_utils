@@ -1,6 +1,7 @@
 import glob
-import os
 import logging
+import os
+
 import ics.utils.visit.pfsVisit as pfsVisit
 import pfs.utils.ingestPfsDesign as ingestPfsDesign
 from pfs.datamodel import PfsDesign, PfsConfig
@@ -21,13 +22,17 @@ class PfsField(object):
 
         # try to reload pfsConfig as well, it might already exist.
         try:
-            self.pfsConfig0 = self.loadPfsConfig0(self.pfsDesignId, self.visit0)
+            self.pfsConfig0 = self.loadPfsConfig0(self.pfsDesignId, self.fpsVisitId)
         except:
             self.pfsConfig0 = None
 
     @property
-    def visit0(self):
+    def fpsVisitId(self):
         return self.visit['fps'].visitId
+
+    @property
+    def visit0(self):
+        return self.pfsConfig0.visit if self.pfsConfig0 else self.fpsVisitId
 
     @property
     def pfsDesignId(self):
@@ -83,28 +88,29 @@ class PfsField(object):
 
     def getPfsConfig(self, visitId, cards):
         """Create and return a new pfsConfig object for this visit."""
-        # if there is no pfsConfig0, meaning that there is no matching fps.pfsConfig, so create it from pfsDesign.
+        # no pfsConfig0 means that there is no matching fps.pfsConfig, so create it from pfsDesign.
         if self.pfsConfig0 is None:
             self.logger.info('pfsConfig0 is not available, creating it from current PfsDesign.')
-            self.pfsConfig0 = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId, pfiCenter=self.pfsDesign.pfiNominal)
+            self.pfsConfig0 = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId,
+                                                      pfiCenter=self.pfsDesign.pfiNominal)
             ingestPfsDesign.ingestPfsConfig(self.pfsConfig0)
 
-            # make sure that fpsVisit stay in sync with pfsConfig0.visit.
-            if self.visit0 != self.pfsConfig0.visit:
+            # we do not want fps visit to fall behind.
+            if self.fpsVisitId != self.pfsConfig0.visit:
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
 
         return self.pfsConfig0.copy(visit=visitId, header=cards)
 
     def loadPfsConfig0(self, designId, visit0):
         """Load pfsConfig file after fps convergence."""
-        # if designId or visit0 does not match, do not anything.
-        if designId != self.pfsDesignId or visit0 != self.visit0:
+        # if designId does not match do not do anything.
+        if designId != self.pfsDesignId:
             return
 
-        [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (self.pfsDesignId,
-                                                                                               self.visit0))
+        [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (designId,
+                                                                                               visit0))
         dirName, _ = os.path.split(pfsConfigPath)
         self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
-        self.pfsConfig0 = PfsConfig.read(self.pfsDesignId, self.visit0, dirName=dirName)
+        self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=dirName)
 
         return self.pfsConfig0
