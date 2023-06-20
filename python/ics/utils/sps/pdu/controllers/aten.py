@@ -92,7 +92,7 @@ class aten(FSMThread, bufferedSocket.EthComm):
         :param cmd: current command.
         :raise: socket.error if the communication has failed.
         """
-        self.ioBuffer = bufferedSocket.BufferedSocket(self.name + 'IO', EOL='\r\n\r\n> ', timeout=self.bufferTimeout)
+        self.ioBuffer = bufferedSocket.BufferedSocket(self.name + 'IO', EOL='\r\n\r\n>', timeout=self.bufferTimeout)
         s = self.connectSock()
 
     def _closeComm(self, cmd):
@@ -230,9 +230,9 @@ class aten(FSMThread, bufferedSocket.EthComm):
         pwd = f'pdu.{self.actor.name}' if pwd is None else pwd
         try:
             self.loginCommand('teladmin', ioEOL='Password: ')
-            self.loginCommand(pwd, ioEOL='Telnet server 1.1\r\n\r\n> ')
+            self.loginCommand(pwd, ioEOL='Telnet server 1.1\r\n\r\n>')
 
-            self.ioBuffer.EOL = '\r\n\r\n> '
+            self.ioBuffer.EOL = '\r\n\r\n>'
             self.loginTime = time.time()
         except:
             self.sock = None
