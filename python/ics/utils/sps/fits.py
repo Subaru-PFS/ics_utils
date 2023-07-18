@@ -130,12 +130,13 @@ def getSpsSpectroCards(arm):
     return cards
 
 class SpsFits:
-    def __init__(self, actor, cmd, exptype):
+    def __init__(self, actor, cmd, exptype, pfsDesign=None):
         self.actor = actor
         self.logger = logging.getLogger('spsFits')
         self.logger.setLevel(logging.INFO)
         self.cmd = cmd
         self.exptype = exptype
+        self.pfsDesign = pfsDesign
 
     def armNum(self, cmd):
         """Return the correct arm number: 1, 2, or 4.
@@ -373,12 +374,15 @@ class SpsFits:
             cmd.warn(f'text="unknown lightsource ({lightSource}) for a designId')
             objectCard = 'unknown'
 
-        try:
-            model = self.actor.models['iic'].keyVarDict
-            designId = model['designId'].getValue()
-        except Exception as e:
-            cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
-            designId = 9998
+        if self.pfsDesign is not None:
+            designId = self.pfsDesign
+        else:
+            try:
+                model = self.actor.models['iic'].keyVarDict
+                designId = model['designId'].getValue()
+            except Exception as e:
+                cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
+                designId = 9998
 
         # Completely overwrite the OBJECT card if we do not open the shutter.
         if imtype in {'BIAS', 'DARK'}:
