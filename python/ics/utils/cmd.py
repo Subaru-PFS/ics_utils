@@ -63,6 +63,7 @@ def findCmdKey(cmdStr, cmdKey):
     idlm = re.search(cmdKey, cmdStr).span(0)[-1]
     sub = cmdStr[idlm:]
     sub = sub if sub.find(' ') == -1 else sub[:sub.find(' ')]
+    sub = sub.replace('+', r'\+')  # + is a special character
     pattern = f' {cmdKey}{sub[0]}(.*?){sub[0]}' if sub[0] in ['"', "'"] else f' {cmdKey}{sub}'
     m = re.search(pattern, cmdStr)
     return m.group()
