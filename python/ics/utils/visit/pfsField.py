@@ -114,3 +114,9 @@ class PfsField(object):
         self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=dirName)
 
         return self.pfsConfig0
+
+    def holdPfsConfig0(self, pfsConfig0):
+        """Same pfsDesign was re-declared, hold on to the latest pfsConfig0"""
+        self.logger.info(
+            f'holding pfsConfig0 from pfsConfig-0x%016x-%06d.fits' % (pfsConfig0.pfsDesignId, pfsConfig0.visit))
+        self.pfsConfig0 = pfsConfig0

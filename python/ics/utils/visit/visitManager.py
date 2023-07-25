@@ -22,7 +22,13 @@ class VisitManager(object):
     def declareNewField(self, pfsDesignId, genVisit0=True):
         """Declare new field, read pfsDesign and get visit0."""
         visit0 = self._fetchVisitFromGen2(pfsDesignId=pfsDesignId) if genVisit0 else 0
-        self.activeField = pfsField.PfsField.declareNew(self.actor, pfsDesignId, visit0)
+        activeField = pfsField.PfsField.declareNew(self.actor, pfsDesignId, visit0)
+
+        # if the same pfsDesign is re-declared for some reason hold on to the previous fpsConfig.
+        if self.activeField and self.activeField.pfsDesignId == activeField.pfsDesignId:
+            activeField.holdPfsConfig0(self.activeField.pfsConfig0)
+
+        self.activeField = activeField
 
         return self.activeField.pfsDesign, self.activeField.visit0
 
