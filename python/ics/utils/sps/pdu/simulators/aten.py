@@ -1,5 +1,6 @@
 import socket
 import time
+import numpy as np
 
 
 class Sim(socket.socket):
@@ -57,6 +58,10 @@ class Sim(socket.socket):
             __, nb, state, __ = cmdStr.split(' ')
             self.channels[nb] = state
             self.buf.append('%sOutlet<%s> command is setting\r\n\r\n> ' % (cmdStr, nb))
+        elif 'read sensor o01 simple' in cmdStr:
+            temps = 10 + np.random.normal(0, 0.1)
+            humidity = 60 + np.random.normal(0, 0.1)
+            self.buf.append(f'{cmdStr}{temps:.2f}\r\n{humidity:.2f}\r\n{"NA"}\r\n\r\n> ')
 
     def recv(self, buffersize, flags=None):
         """Return and remove fake response from buffer."""
