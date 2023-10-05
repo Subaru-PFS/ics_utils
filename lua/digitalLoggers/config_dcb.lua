@@ -12,7 +12,7 @@ if false then
 end
 
 -- outlets config for dcb1
-local lnames={"halogen", "outlet02", "hgar", "argon", "krypton", "neon", "n3Heater", "cableB"}
+local lnames={"halogen", "neon", "hgar", "argon", "krypton", "allFiberLamp", "n3Heater", "cableB"}
 local loutlets={ 1, 2, 3, 4, 5, 6, 7, 8}
 
 
