@@ -11,6 +11,7 @@ from ics.utils.threading import threaded, singleShot, blocking
 
 
 class LampsCmd(object):
+
     def __init__(self, actor, name='lamps'):
         # This lets us access the rest of the actor.
         self.actor = actor
@@ -28,7 +29,7 @@ class LampsCmd(object):
             (name, 'stop', self.stop),
             (name, 'start [@(operation|simulation)]', self.start),
 
-            ('prepare', '[<halogen>] [<argon>] [<neon>] [<krypton>] [<xenon>] [<hgar>] [<hgcd>]', self.prepare),
+            ('prepare', ' '.join(f'[<{lamp}>]' for lamp in lampState.allLamps), self.prepare),
             ('go', '[<delay>] [@noWait]', self.go),
             ('stop', '', self.abort),
             ('abort', '', self.abort),
@@ -52,6 +53,7 @@ class LampsCmd(object):
                                         keys.Key("xenon", types.Int(), help="requested Xenon lamp time"),
                                         keys.Key("hgar", types.Int(), help="requested HgAr lamp time"),
                                         keys.Key("hgcd", types.Int(), help="requested HgCd lamp time"),
+                                        keys.Key("allFiberLamp", types.Int(), help="requested allFiberLamp lamp time"),
                                         keys.Key("delay", types.Float(), help="delay before turning lamps on"),
                                         )
 

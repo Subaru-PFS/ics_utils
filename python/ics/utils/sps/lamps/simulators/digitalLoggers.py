@@ -5,9 +5,12 @@ import socket
 import time
 from threading import Thread
 
+import ics.utils.sps.lamps.utils.lampState as lampState
+
 
 class Sim(socket.socket):
-    lampNames = ['halogen', 'neon', 'hgar', 'argon', 'krypton', 'xenon', 'filterwheel']
+    allDcbLamps = list(set(lampState.allLamps) - {'hgcd'})
+    lampNames = allDcbLamps + ['filterwheel']
 
     def __init__(self):
         """Fake lamps tcp server."""
