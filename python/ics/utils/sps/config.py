@@ -3,7 +3,7 @@ from ics.utils.sps.spectroIds import SpectroIds
 
 
 class LightSource(str):
-    validNames = ['dcb', 'dcb2', 'sunss', 'pfi', 'none']
+    validNames = ['dcb', 'dcb2', 'sunss', 'afl9mtp', 'afl12mtp', 'pfi', 'none']
     """Class to describe lightSource, fairly minimal for now."""
 
     def __new__(cls, name):
@@ -11,8 +11,10 @@ class LightSource(str):
 
     @property
     def lampsActor(self):
-        if self.isDcb:
+        if self in ['dcb', 'dcb2']:
             return self
+        elif self in ['afl9mtp', 'afl12mtp']:
+            return 'dcb'  # allFiberLamp is connected to dcb pdu.
         elif self == 'pfi':
             return 'pfilamps'
         elif self in ['sunss', 'none']:
@@ -21,8 +23,8 @@ class LightSource(str):
             raise ValueError(f'unknown lampsActor for {self}')
 
     @property
-    def isDcb(self):
-        return self in ['dcb', 'dcb2']
+    def useDcbActor(self):
+        return self in ['dcb', 'dcb2'] + ['afl9mtp', 'afl12mtp']
 
 
 class NoShutterException(Exception):
