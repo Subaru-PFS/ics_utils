@@ -127,11 +127,14 @@ class Shutter(Part):
 
     def __init__(self, specModule, arm, state='none'):
         self.arm = arm
+        self.lightBeam = None
         Part.__init__(self, specModule, state=state)
 
     def __str__(self):
         """Part identifier."""
-        return f'{self.arm}sh_{self.specModule.specName}'
+        name = f'{self.arm}sh_{self.specModule.specName}'
+        name = f'{name}.closed' if not self.lightBeam else name
+        return name
 
     @property
     def bitMask(self):
@@ -169,6 +172,9 @@ class Shutter(Part):
             outputLight = inputLight if inputLight == 'none' else 'unknown'
 
         return outputLight
+
+    def setLightBeam(self, lightBeam):
+        self.lightBeam = lightBeam
 
 
 class Cam(SpectroIds, Part):

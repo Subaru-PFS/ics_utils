@@ -301,6 +301,10 @@ class SpecModule(SpectroIds):
         opeShutters = [shutter for shutter in shutterSet if shutter.operational]
         requiredShutters = opeShutters if lightBeam else opeShutters[-1:]
 
+        # not a fan of this implementation since it leaves state behind, but I think that's safe.
+        for shutter in requiredShutters:
+            shutter.setLightBeam(lightBeam)
+
         return requiredShutters
 
     def dependencies(self, arm, seqObj):
