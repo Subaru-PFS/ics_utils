@@ -107,9 +107,12 @@ class PfsField(object):
         if designId != self.pfsDesignId:
             return
 
-        [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (designId,
-                                                                                               visit0))
-        dirName, _ = os.path.split(pfsConfigPath)
+        # [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (designId, visit0))
+
+        lastDate = max(glob.glob(os.path.join('/data/raw', '*/')), key=os.path.getmtime)
+        dirName = os.path.join(lastDate, 'pfsConfig')
+        pfsConfigPath = os.path.join(dirName, 'pfsConfig-0x%016x-%06d.fits' % (designId, visit0))
+
         self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
         self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=dirName)
 
