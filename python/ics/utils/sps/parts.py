@@ -127,7 +127,7 @@ class Shutter(Part):
 
     def __init__(self, specModule, arm, state='none'):
         self.arm = arm
-        self.lightBeam = None
+        self.lightBeam = True
         Part.__init__(self, specModule, state=state)
 
     def __str__(self):
