@@ -202,6 +202,15 @@ class SpsFits:
 
         return lightSource.lower()
 
+    def getLampSource(self, cmd):
+        """Return our lamp source (pfilamps, dcb, dcb2). """
+
+        lightSource = self.getLightSource(cmd)
+        if lightSource == 'pfi':
+            return 'pfilamps'
+        else:
+            return lightSource
+        
     def getImageCards(self, cmd=None):
         """Return the FITS cards for the image HDU, WCS, basically.
 
@@ -219,8 +228,9 @@ class SpsFits:
 
         return allCards
 
-    def genDcbLampCards(self, cmd, expTime):
-        """Generate header cards for dcb lamps.
+    def genPhysicalLampCards(self, cmd, expTime, visit):
+        """Generate header cards for dcb/pfi/engineering lamps.
+        
         Lamp are described by off/on timestamp that accurately track when the lamp switch state.
         The principle is that from those two timestamps and the shutter opening/closing time, you can
         infer the state and how long the lamp was actually used during the exposure.
@@ -228,11 +238,11 @@ class SpsFits:
 
         try:
             enuModel = self.actor.enuModel
-            (visit, integrationStartedAt, openReturnedAt,
+            (shutterVisit, integrationStartedAt, openReturnedAt,
              integrationEndedAt, closeReturnedAt) = enuModel.keyVarDict['shutterTimings'].getValue()
         except Exception as e:
             cmd.warn(f'text="failed to fetch shutterTimings: {e}')
-            visit = 0
+            shutterVisit = 0
             integrationStartedAt = openReturnedAt = ''
             integrationEndedAt = closeReturnedAt = ''
 
@@ -246,14 +256,16 @@ class SpsFits:
         # convert times to floats
         shutterOpenTime = pfsTime.Time.fromisoformat(openReturnedAt).timestamp()
         shutterCloseTime = pfsTime.Time.fromisoformat(closeReturnedAt).timestamp()
+        self.logger.info(f'shutterOpenTime={shutterOpenTime}, shutterCloseTime={shutterCloseTime} dt={shutterOpenTime-shutterCloseTime}')
 
-        def inferLampStateAndTime(lampKey, dcbModel):
+        def inferLampStateAndTime(lampKey, lampModel):
             """Translate on/off timestamp to lamp state and duration"""
-            __, offIsoTime, onIsoTime = dcbModel.keyVarDict[lampKey].getValue()
+            __, offIsoTime, onIsoTime = lampModel.keyVarDict[lampKey].getValue()
             # converting all time to comparable floats.
             offTime = pfsTime.Time.fromisoformat(offIsoTime).timestamp()
             onTime = pfsTime.Time.fromisoformat(onIsoTime).timestamp()
-
+            self.logger.info(f'{lampKey} {onTime} {offTime} {onTime-offTime}')
+            
             offTime = shutterCloseTime if offTime < onTime else offTime
             start = min(max(onTime, shutterOpenTime), shutterCloseTime)
             end = max(min(offTime, shutterCloseTime), shutterOpenTime)
@@ -265,33 +277,47 @@ class SpsFits:
 
             lampState = lampTime > 0
 
+            self.logger.info(f'{lampKey} {lampState} {lampTime} {expTime}; {start} {end} {end-start}')
             return lampState, lampTime
 
-        lampCards = []
-        lightSource = self.getLightSource(cmd)
+        lampDefs = [('halogen', 'W_AITQTH', 'W_CLQTHT'),
+                    ('neon', 'W_AITNEO', 'W_CLNEOT'),
+                    ('krypton', 'W_AITKRY', 'W_CLKRYT'),
+                    ('argon', 'W_AITARG', 'W_CLARGT')]
 
-        if lightSource in {'dcb', 'dcb2'}:
+        lampCards = []
+        lampSource = self.getLampSource(cmd)
+        self.logger.info(f'lampSource={lampSource}')
+        
+        # Still need to refactor this to support engineering fibers...
+        if lampSource in {'dcb', 'dcb2', 'pfilamps'}:
             try:
-                dcbModel = self.actor.models[lightSource]
+                lampModel = self.actor.models[lampSource]
             except Exception as e:
-                cmd.warn(f'text="failed to get {lightSource} model, no lampCard could be retrieved : {e}"')
+                cmd.warn(f'text="failed to get {lampSource} model, no lampCard could be retrieved : {e}"')
                 return lampCards
 
-            for key, lampStateKey, lampTimeKey in [('halogen', 'W_AITQTH', 'W_CLQTHT'),
-                                                   ('neon', 'W_AITNEO', 'W_CLNEOT'),
-                                                   ('hgar', 'W_AITHGA', 'W_CLHGAT'),
-                                                   ('krypton', 'W_AITKRY', 'W_CLKRYT'),
-                                                   ('argon', 'W_AITARG', 'W_CLARGT'),
-                                                   ('xenon', 'W_AITXEN', 'W_CLXENT')]:
+            if lampSource == 'pfilamps':
+                lampDefs.append(('hgcd', 'W_AITHGC', 'W_CLHGCT'),)
+                lampDefs.append(('xenon', 'W_AITXEN', 'W_CLXENT'),)
+            else:
+                lampDefs.append(('hgar', 'W_AITHGA', 'W_CLHGAT'),)
+                lampDefs.append(('xenon', 'W_AITXEN', 'W_CLXENT'),)
 
+            self.logger.info(f'lampSource={lampSource}, {len(lampDefs)} lampDefs')
+
+            for key, lampStateKey, lampTimeKey in lampDefs:
                 try:
-                    lampState, lampTime = inferLampStateAndTime(key, dcbModel)
-                    lampCards.append(dict(name=lampStateKey, value=lampState,
-                                          comment=f'{key.upper()} lamp state'))
-                    lampCards.append(dict(name=lampTimeKey, value=lampTime,
-                                          comment=f'[s] {key.upper()} lamp on time'))
+                    if visit != shutterVisit:
+                        lampState, lampTime = False, 0.0
+                    else:
+                        lampState, lampTime = inferLampStateAndTime(key, lampModel)
+                        lampCards.append(dict(name=lampStateKey, value=lampState,
+                                                comment=f'{key.upper()} lamp state'))
+                        lampCards.append(dict(name=lampTimeKey, value=lampTime,
+                                                comment=f'[s] {key.upper()} lamp on time'))
                 except Exception as e:
-                    cmd.warn(f'text="failed to get {lightSource}.{key} key :{e}"')
+                    cmd.warn(f'text="failed to get {lampSource}.{key} key :{e}"')
 
         return lampCards
 
@@ -325,11 +351,11 @@ class SpsFits:
 
         return lampCards
 
-    def genLampCards(self, cmd, expTime):
+    def genLampCards(self, cmd, expTime, visit):
         """Return all lamp cards, based on the correct source. """
 
         lampCards = []
-        lampCards.extend(self.genDcbLampCards(cmd, expTime))
+        lampCards.extend(self.genPhysicalLampCards(cmd, expTime, visit))
         lampCards.extend(self.genPfiLampCards(cmd, expTime))
 
         return lampCards
@@ -355,7 +381,7 @@ class SpsFits:
         Knows about PFI, DCB and SuNSS cards. Uses the sps.lightSources key
         to tell us which to use.
 
-        Manually sets the OBJECT card if the lightSource is not the PFI.
+        Manually sets the OBJECT card if the lightSource is not the PFI, with an object exposure.
 
         """
 
@@ -384,9 +410,9 @@ class SpsFits:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
                 designId = 9998
 
-        # Completely overwrite the OBJECT card if we do not open the shutter.
-        if imtype in {'BIAS', 'DARK'}:
-            objectCard = 'dark'
+        # Completely overwrite the OBJECT card if we are taking any kind of cals
+        if imtype in {'BIAS', 'DARK', 'FLAT', 'COMPARISON', 'TEST'}:
+            objectCard = imtype.lower()
 
         if objectCard is not None:
             cards.append(dict(name='OBJECT', value=objectCard, comment='Internal id for this light source'))
@@ -484,6 +510,7 @@ class SpsFits:
         cmd.debug(f'text="provisionally fetching MHS cards from {modelNames}"')
 
         # Lamps are picked up more carefully: we need to select exactly one of these
+        lampSource = self.getLampSource(cmd)
         for lampsName in 'pfilamps', 'dcb', 'dcb2':
             if lampsName in modelNames:
                 modelNames.remove(lampsName)
@@ -504,8 +531,6 @@ class SpsFits:
 
     def getEndInstCards(self, cmd):
         """Gather cards at the end of integration. Calibration lamps, etc. """
-
-        cards = []
 
         try:
             lightSource = self.getLightSource(cmd)
@@ -547,13 +572,15 @@ class SpsFits:
 
         return keepCards
 
-    def finishHeaderKeys(self, cmd, visit, timeCards, expTime=None):
+    def finishHeaderKeys(self, cmd, visit, timeCards, extraCards=None,
+                         exptype=None, expTime=None, gain=None):
         """ Finish the header. Should be called just before readout starts. Must not block! """
 
         if cmd is None:
             cmd = self.cmd
 
-        gain = 9999.0
+        if gain is None:
+            gain = 9999.0
         detectorId = self.actor.ids.camName
         try:
             xcuModel = self.actor.xcuModel
@@ -562,6 +589,8 @@ class SpsFits:
             cmd.warn(f'text="failed to get detector temp for Subaru: {e}"')
             detectorTemp = 9998.0
 
+        if exptype is not None:
+            self.exptype = exptype
         exptype = self.exptype.upper()
         if exptype == 'ARC':
             exptype = 'COMPARISON'
@@ -573,10 +602,10 @@ class SpsFits:
             detId = -1
 
         beamConfigCards = self.getBeamConfigCards(cmd, visit)
-        lampCards = self.genLampCards(cmd, expTime)
         spectroCards = self.getSpectroCards(cmd)
         designCards = self.getPfsDesignCards(cmd, exptype)
         mhsCards = self.getMhsCards(cmd)
+        lampCards = self.genLampCards(cmd, expTime, visit)
         endCards = self.getEndInstCards(cmd)
 
         # We might be overriding the Subaru/gen2 OBJECT.
@@ -600,6 +629,8 @@ class SpsFits:
                              comment='Spectrograph arm 1=b, 2=r, 3=n, 4=medRed'))
         allCards.append(dict(name='W_SPMOD', value=self.actor.ids.specNum,
                              comment='Spectrograph module. 1-4 at Subaru'))
+        allCards.append(dict(name='W_CAM', value=self.actor.ids.camName,
+                             comment='PFS camera name'))
         allCards.append(dict(name='W_SITE', value=self.actor.ids.site,
                              comment='PFS DAQ location: Subaru, Jhu, Lam, Asiaa'))
         allCards.extend(designCards)
@@ -607,11 +638,13 @@ class SpsFits:
 
         allCards.append(dict(name='COMMENT', value='################################ Time cards'))
         allCards.extend(timeCards)
+        allCards.extend(endCards)
+        allCards.extend(lampCards)  # Replaces DCBx/pfilamps cards. In place.
+
+        if extraCards:
+            allCards.extend(extraCards)
 
         allCards.extend(mhsCards)
-        allCards.extend(lampCards)  # Might replace DCBx cards. In place, I believe.
-
-        allCards.extend(endCards)
         allCards.extend(beamConfigCards)
 
         allCards = self.validateCards(cmd, allCards)
