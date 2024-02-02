@@ -552,9 +552,9 @@ def splitIRP(rawImg, nChannel=32, refPix=None, oddEven=True):
             rawChan = rawChan[:, ::-1]
         refChan = rawChan[:, refPix::refSkip]
 
-        dataChan = np.empty(shape=(height, dataChanWidth), dtype='u2')
+        dataChan = np.zeros(shape=(height, dataChanWidth), dtype='u2')
         dataPix = 0
-        for i in range(0, refRatio):
+        for i in range(refRatio+1):
             # Do not copy over reference pixels, wherever they may be.
             if i == refPix:
                 continue
