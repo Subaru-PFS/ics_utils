@@ -280,32 +280,40 @@ class SpsFits:
             self.logger.info(f'{lampKey} {lampState} {lampTime} {expTime}; {start} {end} {end-start}')
             return lampState, lampTime
 
-        lampDefs = [('halogen', 'W_AITQTH', 'W_CLQTHT'),
-                    ('neon', 'W_AITNEO', 'W_CLNEOT'),
-                    ('krypton', 'W_AITKRY', 'W_CLKRYT'),
-                    ('argon', 'W_AITARG', 'W_CLARGT')]
-
+        sources = []
         lampCards = []
         lampSource = self.getLampSource(cmd)
         self.logger.info(f'lampSource={lampSource}')
-        
-        # Still need to refactor this to support engineering fibers...
+
+        # Science fiber lamps
         if lampSource in {'dcb', 'dcb2', 'pfilamps'}:
-            try:
-                lampModel = self.actor.models[lampSource]
-            except Exception as e:
-                cmd.warn(f'text="failed to get {lampSource} model, no lampCard could be retrieved : {e}"')
-                return lampCards
+            lampDefs = [('halogen', 'W_AITQTH', 'W_CLQTHT'),
+                        ('neon', 'W_AITNEO', 'W_CLNEOT'),
+                        ('krypton', 'W_AITKRY', 'W_CLKRYT'),
+                        ('argon', 'W_AITARG', 'W_CLARGT'),
+                        ('xenon', 'W_AITXEN', 'W_CLXENT')]
 
             if lampSource == 'pfilamps':
                 lampDefs.append(('hgcd', 'W_AITHGC', 'W_CLHGCT'),)
-                lampDefs.append(('xenon', 'W_AITXEN', 'W_CLXENT'),)
             else:
                 lampDefs.append(('hgar', 'W_AITHGA', 'W_CLHGAT'),)
-                lampDefs.append(('xenon', 'W_AITXEN', 'W_CLXENT'),)
 
-            self.logger.info(f'lampSource={lampSource}, {len(lampDefs)} lampDefs')
+            try:
+                lampModel = self.actor.models[lampSource]
+                sources.append((lampModel, lampDefs))
+                self.logger.info(f'lampSource={lampSource}, {len(lampDefs)} lampDefs')
+            except Exception as e:
+                cmd.warn(f'text="failed to get {lampSource} model, no lampCards could be retrieved : {e}"')
 
+        # Engineering fiber lamps      
+        iisLampDefs = [('halogen', 'W_ENIQTH', 'W_ILQTHT'),
+                       ('argon', 'W_ENIARG', 'W_ILARGT'),
+                       ('hgar', 'W_ENIHGA', 'W_ILHGAT'),
+                       ('krypton', 'W_ENIKRY', 'W_ILKRYT'),
+                       ('neon', 'W_ENINEO', 'W_ILNEOT'),]
+        sources.append((enuModel, iisLampDefs))
+
+        for lampModel, lampDefs in sources:
             for key, lampStateKey, lampTimeKey in lampDefs:
                 try:
                     if visit != shutterVisit:
@@ -321,12 +329,8 @@ class SpsFits:
 
         return lampCards
 
-    def genPfiLampCards(self, cmd, expTime):
-        """Generate header cards for pfilamps or telescope ring lamps.
-
-        Until the pfilamps actor is switched to DCB-style timing, just generate ring lamp
-        QTH cards. The pfilamps cards are taken from the actorkeys dictionary.
-        """
+    def genRingLampCards(self, cmd, expTime):
+        """Generate header cards for telescope ring lamps."""
 
         lampCards = []
         lightSource = self.getLightSource(cmd)
@@ -356,7 +360,7 @@ class SpsFits:
 
         lampCards = []
         lampCards.extend(self.genPhysicalLampCards(cmd, expTime, visit))
-        lampCards.extend(self.genPfiLampCards(cmd, expTime))
+        lampCards.extend(self.genRingLampCards(cmd, expTime))
 
         return lampCards
 
