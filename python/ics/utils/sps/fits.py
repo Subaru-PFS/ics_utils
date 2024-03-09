@@ -283,7 +283,7 @@ class SpsFits:
         sources = []
         lampCards = []
         lampSource = self.getLampSource(cmd)
-        self.logger.info(f'lampSource={lampSource}')
+        self.logger.info(f'lampSource={lampSource}, with visit={visit} and shutterVisit={shutterVisit}')
 
         # Science fiber lamps
         if lampSource in {'dcb', 'dcb2', 'pfilamps'}:
@@ -312,21 +312,24 @@ class SpsFits:
                        ('krypton', 'W_ENIKRY', 'W_ILKRYT'),
                        ('neon', 'W_ENINEO', 'W_ILNEOT'),]
         sources.append((enuModel, iisLampDefs))
+        self.logger.info(f'sources={sources}')
 
         for lampModel, lampDefs in sources:
+            self.logger.info(f'{lampModel} : {len(lampDefs)}')
             for key, lampStateKey, lampTimeKey in lampDefs:
                 try:
-                    if visit != shutterVisit:
+                    if visit != shutterVisit: # BAD: could hide lamp -- CPL
                         lampState, lampTime = False, 0.0
                     else:
                         lampState, lampTime = inferLampStateAndTime(key, lampModel)
-                        lampCards.append(dict(name=lampStateKey, value=lampState,
-                                                comment=f'{key.upper()} lamp state'))
-                        lampCards.append(dict(name=lampTimeKey, value=lampTime,
-                                                comment=f'[s] {key.upper()} lamp on time'))
+                    lampCards.append(dict(name=lampStateKey, value=lampState,
+                                            comment=f'{key.capitalize()} lamp state'))
+                    lampCards.append(dict(name=lampTimeKey, value=lampTime,
+                                            comment=f'[s] {key.capitalize()} lamp on time'))
                 except Exception as e:
                     cmd.warn(f'text="failed to get {lampSource}.{key} key :{e}"')
 
+        self.logger.info(f'total gathered {len(lampCards)} lampCards"')
         return lampCards
 
     def genRingLampCards(self, cmd, expTime):
