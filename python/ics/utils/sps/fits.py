@@ -301,7 +301,6 @@ class SpsFits:
             try:
                 lampModel = self.actor.models[lampSource]
                 sources.append((lampModel, lampDefs))
-                self.logger.info(f'lampSource={lampSource}, {len(lampDefs)} lampDefs')
             except Exception as e:
                 cmd.warn(f'text="failed to get {lampSource} model, no lampCards could be retrieved : {e}"')
 
@@ -312,7 +311,6 @@ class SpsFits:
                        ('krypton', 'W_ENIKRY', 'W_ILKRYT'),
                        ('neon', 'W_ENINEO', 'W_ILNEOT'),]
         sources.append((enuModel, iisLampDefs))
-        self.logger.info(f'sources={sources}')
 
         for lampModel, lampDefs in sources:
             self.logger.info(f'{lampModel} : {len(lampDefs)}')
