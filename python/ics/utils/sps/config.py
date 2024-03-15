@@ -559,7 +559,7 @@ class SpsConfig(dict):
         for specModule in specModules:
             spsData.persistKey(f'{specModule.specName}LightSource', lightSource)
 
-    def keysToCam(self, cmd):
+    def keysToCam(self, cmdKeys):
         """
         Identify the cameras based on the provided command keywords.
 
@@ -569,7 +569,6 @@ class SpsConfig(dict):
         Returns:
         list: A list of identified cameras.
         """
-        cmdKeys = cmd.cmd.keywords
         # identify cams
         cams = cmdKeys['cams'].values if 'cams' in cmdKeys else None
         cams = cmdKeys['cam'].values if 'cam' in cmdKeys else cams
@@ -581,11 +580,11 @@ class SpsConfig(dict):
         arms = cmdKeys['arm'].values if 'arm' in cmdKeys else arms
 
         if cams and (specNums or arms):
-            cmd.warn('text="you cannot provide both cam and (specNum or arm), using cam..."')
+            raise ValueError('you cannot provide both cam and (specNum or arm)')
 
-        return cmdKeys, self.identify(cams=cams, specNums=specNums, arms=arms)
+        return self.identify(cams=cams, specNums=specNums, arms=arms)
 
-    def keysToSpecNum(self, cmd):
+    def keysToSpecNum(self, cmdKeys):
         """
         Get the specNum from command keywords if specified, or get values from spsConfig otherwise.
 
@@ -596,6 +595,6 @@ class SpsConfig(dict):
         list: A list of unique specNums.
         """
         # identify cams
-        cmdKeys, cams = self.keysToCam(cmd)
+        cams = self.keysToCam(cmdKeys)
         # get unique specNums
-        return cmdKeys, list(set([cam.specNum for cam in cams]))
+        return list(set([cam.specNum for cam in cams]))
