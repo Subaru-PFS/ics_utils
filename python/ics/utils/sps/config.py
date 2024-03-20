@@ -434,17 +434,19 @@ class SpsConfig(dict):
         If no specNums is provided then we're assuming modules labelled as sps.
         If no arm is provided then we're assuming all arms.
 
-        Parameters
-        ----------
+        Parameters:
         specNums : list of `int`
-            List of required spectrograph module number (1,2,..).
+            List of required spectrograph module number (1,2,...).
         arms : list of `str`
             List of required arm (b,r,n,m)
         cams : list of `str`
             List of camera names.
+        filter : str, optional
+            Filter to select cameras.
+            Default is 'default', which selects all cameras defined as science in the config file.
+            If set to 'operational', all cameras defined as science or engineering are selected.
 
-        Returns
-        -------
+        Returns:
         cams : `list` of `Cam`
             List of Cam object.
         """
@@ -459,13 +461,11 @@ class SpsConfig(dict):
     def selectModules(self, specNums=None):
         """Select spectrograph modules for a given list of spectrograph number.
 
-        Parameters
-        ----------
+        Parameters:
         specNums : list of `int`
             List of required spectrograph module number (1,2,..).
 
-        Returns
-        -------
+        Returns:
         specModules : `list` of `SpecModule`
             List of SpecModule object.
         """
@@ -486,35 +486,36 @@ class SpsConfig(dict):
         """Return the outer product between provided specModules and arms.
         If no arms is provided, then assuming all arms.
 
-        Parameters
-        ----------
+        Parameters:
         specModules : list of `specModules`
             List of required spectrograph module.
-        arm : list of `str`
-            List of required arm (b,r,n,m)
+        arms : list of `str`, optional
+            List of required arm (b,r,n,m). If not provided, all arms are assumed.
+        filter : str, optional
+            Filter to select cameras.
+            Default is 'default', which selects all cameras defined as science in the config file.
+            If set to 'operational', all cameras defined as science or engineering are selected.
 
-        Returns
-        -------
+        Returns:
         cams : `list` of `Cam`
             List of Cam object.
         """
-        if arms is not None:
-            cams = [specModule.camera(arm) for specModule in specModules for arm in arms]
-        else:
-            cams = sum([specModule.getCams(filter=filter) for specModule in specModules], [])
+        arms = SpectroIds.validArms if arms is None else arms
+        # retrieve all cams first.
+        cams = sum([specModule.getCams(filter=filter) for specModule in specModules], [])
+        # filter by arm.
+        cams = [cam for cam in cams if cam.arm in arms]
 
         return cams
 
     def selectCam(self, camName):
         """Retrieve Cam object from camera name.
 
-        Parameters
-        ----------
+        Parameters:
         camName : `str`
             Camera name.
 
-        Returns
-        -------
+        Returns:
         cam : `ics.utils.sps.part.Cam`
             Cam object.
         """
