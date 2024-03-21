@@ -159,7 +159,7 @@ class SpsFits:
             return arms[self.actor.grating]
 
         try:
-            rexm = self.actor.enuModel.keyVarDict['rexm'].getValue()
+            visit, rexm = self.actor.enuModel.keyVarDict['redResolution'].getValue()
         except Exception as e:
             self.logger.warn('failed to get enu grating position: %s', e)
             cmd.warn('text="failed to get enu grating position: using low"')
