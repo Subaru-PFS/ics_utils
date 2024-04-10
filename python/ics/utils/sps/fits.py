@@ -380,7 +380,7 @@ class SpsFits:
 
         return cards
 
-    def getPfsDesignCards(self, cmd, imtype):
+    def getPfsDesignCards(self, cmd, imtype, pfsDesign=None):
         """Return the pfsDesign-associated cards.
 
         Knows about PFI, DCB and SuNSS cards. Uses the sps.lightSources key
@@ -405,15 +405,18 @@ class SpsFits:
             cmd.warn(f'text="unknown lightsource ({lightSource}) for a designId')
             objectCard = 'unknown'
 
-        if self.pfsDesign is not None:
-            designId = self.pfsDesign
+        if pfsDesign is not None:
+            designId, designName = pfsDesign
         else:
             try:
                 model = self.actor.models['iic'].keyVarDict
-                designId = model['designId'].getValue()
+                designParts = model['pfsConfig'].getValue()
+                designId = int(designParts[0])
+                designName = str(designParts[6])
             except Exception as e:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
                 designId = 9998
+                designName = "unknown"
 
         # Completely overwrite the OBJECT card if we are taking any kind of cals
         if imtype in {'BIAS', 'DARK', 'FLAT', 'COMPARISON', 'TEST'}:
@@ -423,6 +426,8 @@ class SpsFits:
             cards.append(dict(name='OBJECT', value=objectCard, comment='Internal id for this light source'))
 
         cards.append(dict(name='W_PFDSGN', value=int(designId), comment=f'pfsDesign, from {lightSource}'))
+        cards.append(dict(name='W_PFDSNM', value=str(designName),
+                          comment=f'pfsDesign name, from {lightSource}'))
         cards.append(dict(name='W_LGTSRC', value=str(lightSource), comment='Light source for this module'))
         return cards
 
@@ -578,7 +583,7 @@ class SpsFits:
         return keepCards
 
     def finishHeaderKeys(self, cmd, visit, timeCards, extraCards=None,
-                         exptype=None, expTime=None, gain=None):
+                         exptype=None, expTime=None, gain=None, pfsDesign=None):
         """ Finish the header. Should be called just before readout starts. Must not block! """
 
         if cmd is None:
@@ -608,7 +613,7 @@ class SpsFits:
 
         beamConfigCards = self.getBeamConfigCards(cmd, visit)
         spectroCards = self.getSpectroCards(cmd)
-        designCards = self.getPfsDesignCards(cmd, exptype)
+        designCards = self.getPfsDesignCards(cmd, exptype, pfsDesign=pfsDesign)
         mhsCards = self.getMhsCards(cmd)
         lampCards = self.genLampCards(cmd, expTime, visit)
         endCards = self.getEndInstCards(cmd)
