@@ -12,8 +12,7 @@ if false then
 end
 
 -- outlets config for iis sm1
-local lnames={"hgar", "neon", "outlet03", "outlet04", "outlet05", "outlet06", "outlet07", "outlet08"}
+local lnames={"outlet01", "neon", "krypton", "halogen", "outlet05", "outlet06", "outlet07", "outlet08"}
 local loutlets={ 1, 2, 3, 4, 5, 6, 7, 8}
-
 
 return {address = address, port = port, lnames = lnames, loutlets = loutlets}
