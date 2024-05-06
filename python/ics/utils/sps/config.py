@@ -523,7 +523,11 @@ class SpsConfig(dict):
             raise ValueError(f'{camName} is not a valid cam')
 
         arm, specNum = camName[0], int(camName[1])
-        [cam] = self.identify(specNums=[specNum], arms=[arm], filter='operational')
+
+        try:
+            [cam] = self.identify(specNums=[specNum], arms=[arm], filter='operational')
+        except ValueError:
+            raise ValueError(f'{camName} camera is not currently available')
 
         return cam
 
@@ -570,6 +574,61 @@ class SpsConfig(dict):
         Returns:
         list: A list of identified cameras.
         """
+
+        def translateCam(camArgs):
+            """
+            For gen2 convenience, translate the input camera arguments into separate lists of cameras,
+            spectrograph module, and arms.
+
+            Parameters
+            ----------
+            camArgs : list of str
+                A list of camera arguments, where each argument can be one of the following:
+                    - 'all': all cameras are selected
+                    - a single character: the arm is selected (e.g. 'b' for the blue arm)
+                    - a two-character string: the camera is selected (e.g. 'b1' for the first camera on the blue arm)
+                    - a three-character string: the spectrograph module is selected (e.g. 'sm1')
+
+            Returns
+            -------
+            cams : list of str or None
+                A list of camera names, or None if no cameras were specified.
+            specNums : list of int or None
+                A list of spectrograph numbers, or None if no spectrograph numbers were specified.
+            arms : list of str or None
+                A list of arm names, or None if no arms were specified.
+
+            Raises
+            ------
+            ValueError
+                If an invalid camera argument is provided.
+                If both camera and spectrograph number or arm are provided.
+            """
+            cams = []
+            specNums = []
+            arms = []
+
+            for element in camArgs:
+                if element == 'all':
+                    break
+                elif len(element) == 1:
+                    arms.append(element)
+                elif len(element) == 2:
+                    cams.append(element)
+                elif len(element) == 3:
+                    specNums.append(int(element[-1]))
+                else:
+                    raise ValueError(f'do not know how to translate :{element}')
+
+            cams = None if not len(cams) else cams
+            specNums = None if not len(specNums) else specNums
+            arms = None if not len(arms) else arms
+
+            if cams and (specNums or arms):
+                raise ValueError('you cannot provide both cam and (specNum or arm)')
+
+            return cams, specNums, arms
+
         # identify cams
         cams = cmdKeys['cams'].values if 'cams' in cmdKeys else None
         cams = cmdKeys['cam'].values if 'cam' in cmdKeys else cams
@@ -580,8 +639,11 @@ class SpsConfig(dict):
         arms = cmdKeys['arms'].values if 'arms' in cmdKeys else None
         arms = cmdKeys['arm'].values if 'arm' in cmdKeys else arms
 
-        if cams and (specNums or arms):
-            raise ValueError('you cannot provide both cam and (specNum or arm)')
+        if cams:
+            if specNums or arms:
+                raise ValueError('you cannot provide both cam and (specNum or arm)')
+
+            cams, specNums, arms = translateCam(cams)
 
         return self.identify(cams=cams, specNums=specNums, arms=arms)
 
