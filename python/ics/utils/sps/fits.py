@@ -618,7 +618,7 @@ class SpsFits:
         lampCards = self.genLampCards(cmd, expTime, visit)
         endCards = self.getEndInstCards(cmd)
 
-        frameLetter = 'A' if self.arm == 'n' else 'B'
+        frameLetter = 'B' if self.arm == 'n' else 'A'
         frameCamId = f'{self.actor.ids.specNum}{self.armNum(cmd)}'
         
         # We might be overriding the Subaru/gen2 OBJECT.
