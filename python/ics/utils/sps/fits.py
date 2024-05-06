@@ -619,13 +619,14 @@ class SpsFits:
         endCards = self.getEndInstCards(cmd)
 
         frameLetter = 'A' if self.arm == 'n' else 'B'
+        frameCamId = f'{self.actor.ids.specNum}{self.armNum(cmd)}'
         
         # We might be overriding the Subaru/gen2 OBJECT.
         fitsUtils.moveCard(designCards, mhsCards, 'OBJECT')
 
         allCards = []
         allCards.append(dict(name='DATA-TYP', value=exptype, comment='Subaru-style exposure type'))
-        allCards.append(dict(name='FRAMEID', value=f'PFS{frameLetter}{visit:06d}00',
+        allCards.append(dict(name='FRAMEID', value=f'PFS{frameLetter}{visit:06d}{frameCamId}',
                              comment='Sequence number in archive'))
         allCards.append(dict(name='EXP-ID', value=f'PFSE{visit:08d}',
                              comment='PFS exposure visit number'))
