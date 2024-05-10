@@ -551,7 +551,7 @@ class SpsConfig(dict):
 
         specModules = self.selectModules([specNum]) if specNum is not None else self.spsModules.values()
 
-        if lightSource != 'pfi':
+        if lightSource not in ['pfi', 'none']:
             # for now, I declare that to be true, might change in the future.
             if len(specModules) > 1:
                 raise RuntimeError(f'{lightSource} can only be plugged to a single SM')
