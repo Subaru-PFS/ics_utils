@@ -76,10 +76,21 @@ class PfsField(object):
         self.persist()
 
     def getGratingPosition(self):
-        """Return required red grating position from pfsDesign."""
-        if 'r' in self.pfsDesign.arms:
+        """
+        Return the required red grating position from the PfsDesign.
+
+        Returns
+        -------
+        str
+            The required red grating position, either 'low' or 'med'. If both or neither
+            of the positions are present in the PFS design, returns None.
+        """
+        lowRes = 'r' in self.pfsDesign.arms
+        medRes = 'm' in self.pfsDesign.arms
+
+        if lowRes and not medRes:
             position = 'low'
-        elif 'm' in self.pfsDesign.arms:
+        elif medRes and not lowRes:
             position = 'med'
         else:
             position = None
