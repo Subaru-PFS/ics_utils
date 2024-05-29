@@ -500,7 +500,9 @@ class SpsConfig(dict):
         cams : `list` of `Cam`
             List of Cam object.
         """
-        arms = SpectroIds.validArms if arms is None else arms
+        arms = list(SpectroIds.validArms.keys()) if arms is None else arms
+        # replacing m with r.
+        arms = list(set(['r' if arm == 'm' else arm for arm in arms]))
         # retrieve all cams first.
         cams = sum([specModule.getCams(filter=filter) for specModule in specModules], [])
         # filter by arm.
