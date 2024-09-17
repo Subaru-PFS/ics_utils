@@ -133,7 +133,7 @@ class PfsField(object):
     def holdPfsConfig0(self, pfsConfig0):
         """Same pfsDesign was re-declared, hold on to the latest pfsConfig0"""
         # no need to go further.
-        if not self.pfsConfig0:
+        if pfsConfig0 is None:
             return
 
         self.logger.info(
