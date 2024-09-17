@@ -19,12 +19,10 @@ class PfsField(object):
 
         pfsDesignId = int(pfsDesignId, 16) if isinstance(pfsDesignId, str) else pfsDesignId
         self.pfsDesign = PfsDesign.read(pfsDesignId, dirName=iicActor.actorConfig['pfsDesign']['rootDir'])
+        self.pfsConfig0 = None
 
-        # try to reload pfsConfig as well, it might already exist.
-        try:
-            self.pfsConfig0 = self.loadPfsConfig0(self.pfsDesignId, self.fpsVisitId)
-        except:
-            self.pfsConfig0 = None
+        # try to reload pfsConfig as well as it might already exist.
+        self.loadPfsConfig0(self.pfsDesignId, self.fpsVisitId, doIgnore=True)
 
     @property
     def fpsVisitId(self):
@@ -112,27 +110,30 @@ class PfsField(object):
 
         return self.pfsConfig0.copy(visit=visitId, header=cards)
 
-    def loadPfsConfig0(self, designId, visit0):
+    def loadPfsConfig0(self, designId, visit0, doIgnore=False):
         """Load pfsConfig file after fps convergence."""
         # if designId does not match do not do anything.
         if designId != self.pfsDesignId:
             return
 
-        # [pfsConfigPath] = glob.glob('/data/raw/*-*-*/pfsConfig/pfsConfig-0x%016x-%06d.fits' % (designId, visit0))
-
         lastDate = max(glob.glob(os.path.join('/data/raw', '*/')), key=os.path.getmtime)
         dirName = os.path.join(lastDate, 'pfsConfig')
         pfsConfigPath = os.path.join(dirName, 'pfsConfig-0x%016x-%06d.fits' % (designId, visit0))
 
-        self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
-        self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=dirName)
+        # do not raise error at this point.
+        if not os.path.isfile(pfsConfigPath) and doIgnore:
+            return
 
-        return self.pfsConfig0
+        self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
+        try:
+            self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=dirName)
+        except Exception as e:
+            self.logger.warning(str(e), exc_info=True)
 
     def holdPfsConfig0(self, pfsConfig0):
         """Same pfsDesign was re-declared, hold on to the latest pfsConfig0"""
         # no need to go further.
-        if not self.pfsConfig0:
+        if pfsConfig0 is None:
             return
 
         self.logger.info(
