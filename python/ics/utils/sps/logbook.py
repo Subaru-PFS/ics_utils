@@ -4,7 +4,7 @@ import re
 import pandas as pd
 from ics.utils.opdb import opDB
 
-pd.set_option('display.max_colwidth', -1)
+pd.set_option('display.max_colwidth', None)
 
 
 def stripField(rawCmd, field):
