@@ -8,8 +8,7 @@ class VisitManager(object):
         self.actor = actor
         self.activeField = self.reloadField()
 
-        self.activeVisit = dict()  # do not think it's used anywhere but keeping it just in case.
-        self.activePfsConfig = dict()
+        self.activeVisit = dict()
 
     def reloadField(self):
         """Reload persisted pfsField."""
