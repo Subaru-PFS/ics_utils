@@ -95,7 +95,7 @@ class PfsField(object):
 
         return position
 
-    def getPfsConfig(self, visitId, cards):
+    def getPfsConfig(self, visitId, cards, camMask):
         """Create and return a new pfsConfig object for this visit."""
         # no pfsConfig0 means that there is no matching fps.pfsConfig, so create it from pfsDesign.
         if self.pfsConfig0 is None:
@@ -108,7 +108,7 @@ class PfsField(object):
             if self.fpsVisitId != self.pfsConfig0.visit:
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
 
-        return self.pfsConfig0.copy(visit=visitId, header=cards), self.pfsConfig0.visit
+        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask), self.pfsConfig0.visit
 
     def loadPfsConfig0(self, designId, visit0, doIgnore=False):
         """Load pfsConfig file after fps convergence."""
