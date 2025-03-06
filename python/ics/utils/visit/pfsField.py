@@ -139,3 +139,9 @@ class PfsField(object):
         self.logger.info(
             f'holding pfsConfig0 from pfsConfig-0x%016x-%06d.fits' % (pfsConfig0.pfsDesignId, pfsConfig0.visit))
         self.pfsConfig0 = pfsConfig0
+
+    def lockVisit(self):
+        """The current visit won't be available anymore."""
+        for caller, visit in self.visit.items():
+            self.logger.debug(f'locking visit{visit} for caller:{caller}')
+            visit.lock()
