@@ -9,15 +9,19 @@ from opscore.utility.qstr import qstr
 
 import fitsio
 
+# Defining EXPIRED and INVALID in only one place.
+EXPIRED = -9998
+INVALID = -9999
+
 def getExpiredValue(keyType, key):
     """ Return a type-correct Expired value. """
 
     if issubclass(keyType.__class__, types.Bool):
         return False
     if keyType.baseType is int:
-        return -9998
+        return int(EXPIRED)
     if keyType.baseType is float:
-        return -9998.0
+        return float(EXPIRED)
     if keyType.baseType is str:
         return 'no available value'
     raise ValueError('unexpected type: %s' % (keyType.baseType))
@@ -28,9 +32,9 @@ def getInvalidValue(keyType, key):
     if issubclass(keyType.__class__, types.Bool):
         return False
     if keyType.baseType is int:
-        return -9999
+        return int(INVALID)
     if keyType.baseType is float:
-        return -9999.0
+        return float(INVALID)
     if keyType.baseType is str:
         return 'invalid value'
     raise ValueError('unexpected type: %s' % (keyType.baseType))
