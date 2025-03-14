@@ -95,7 +95,7 @@ class PfsField(object):
 
         return position
 
-    def getPfsConfig(self, visitId, cards, camMask):
+    def makePfsConfig(self, visitId, cards, camMask):
         """Create and return a new pfsConfig object for this visit."""
         # no pfsConfig0 means that there is no matching fps.pfsConfig, so create it from pfsDesign.
         if self.pfsConfig0 is None:
@@ -145,3 +145,10 @@ class PfsField(object):
         for caller, visit in self.visit.items():
             self.logger.debug(f'locking visit{visit} for caller:{caller}')
             visit.lock()
+
+    def getVisit0(self):
+        """Get current visit0"""
+        if self.pfsConfig0 is None:
+            raise ValueError('no pfsConfig0 is available.')
+
+        return self.pfsConfig0.visit
