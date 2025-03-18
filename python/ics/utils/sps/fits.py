@@ -415,7 +415,7 @@ class SpsFits:
                 designName = str(designParts[6])
             except Exception as e:
                 cmd.warn(f'text="failed to get designId for {lightSource}: {e}"')
-                designId = 9998
+                designId = int(fitsMhs.INVALID)
                 designName = "unknown"
 
         # Completely overwrite the OBJECT card if we are taking any kind of cals
@@ -444,10 +444,10 @@ class SpsFits:
         """
 
         anyBad = False
-        dcbDate = 9998.0
-        fpaDate = 9998.0
-        hexapodDate = 9998.0
-        gratingDate = 9998.0
+        dcbDate = float(fitsMhs.EXPIRED)
+        fpaDate = float(fitsMhs.EXPIRED)
+        hexapodDate = float(fitsMhs.EXPIRED)
+        gratingDate = float(fitsMhs.EXPIRED)
 
         lightSource = self.getLightSource(cmd)
         haveDcb = lightSource in {'dcb', 'dcb2'}
@@ -483,7 +483,7 @@ class SpsFits:
                 anyBad = True
 
         if anyBad:
-            beamConfigDate = 9998.0
+            beamConfigDate = float(fitsMhs.EXPIRED)
             cmd.warn(f'beamConfigDate={visit},{beamConfigDate:0.6f}')
         else:
             beamConfigDate = max(fpaDate, hexapodDate)
@@ -590,14 +590,14 @@ class SpsFits:
             cmd = self.cmd
 
         if gain is None:
-            gain = 9999.0
+            gain = float(fitsMhs.INVALID)
         detectorId = self.actor.ids.camName
         try:
             xcuModel = self.actor.xcuModel
             detectorTemp = xcuModel.keyVarDict['temps'].getValue()[-1]
         except Exception as e:
             cmd.warn(f'text="failed to get detector temp for Subaru: {e}"')
-            detectorTemp = 9998.0
+            detectorTemp = float(fitsMhs.EXPIRED)
 
         if exptype is not None:
             self.exptype = exptype
