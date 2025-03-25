@@ -108,7 +108,7 @@ class PfsField(object):
             if self.fpsVisitId != self.pfsConfig0.visit:
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
 
-        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask), self.pfsConfig0.visit
+        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit)
 
     def loadPfsConfig0(self, designId, visit0, doIgnore=False):
         """Load pfsConfig file after fps convergence."""
