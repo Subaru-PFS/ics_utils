@@ -431,6 +431,48 @@ class SpsFits:
         cards.append(dict(name='W_LGTSRC', value=str(lightSource), comment='Light source for this module'))
         return cards
 
+    def getMetadataCards(self, cmd, metadata):
+        """Return the cards from the catchall metadata argument to the exposure commands.
+
+        These were added with INSTRM-2419, at which point we got:
+          visit0, sequenceId,
+          groupId, groupName,
+          sequence_type, sequence_name, sequence_comments
+        """
+
+        cards = []
+        if metadata is None:
+            return cards
+
+        try:
+            (visit0, sequenceId,
+             groupId, groupName,
+             sequenceType, sequenceName, sequenceComments) = metadata
+        except Exception as e:
+            cmd.warning(f'text="failed to parse metadata key: {e}"')
+            return cards
+
+        try:
+            cards.append(dict(name='W_VISIT0', value=int(visit0),
+                              comment='Cobra convergence visit'))
+            cards.append(dict(name='W_SEQID', value=int(sequenceId),
+                              comment='IIC sequence id'))
+            cards.append(dict(name='W_SEQTYP', value=str(sequenceType),
+                              comment='IIC sequence type'))
+            cards.append(dict(name='W_SEQNAM', value=str(sequenceName),
+                              comment='IIC sequence name'))
+            cards.append(dict(name='W_SEQCMN', value=str(sequenceComments),
+                              comment='IIC sequence comments'))
+            cards.append(dict(name='W_GRPID', value=int(groupId),
+                              comment='Gen2 group id'))
+            cards.append(dict(name='W_GRPNAM', value=str(groupName),
+                              comment='Gen2 group name'))
+        except Exception as e:
+            cmd.warning(f'text="failed to generate metadata cards: {e}"')
+            return cards
+
+        return cards
+
     def getBeamConfigCards(self, cmd, visit):
         """Generate header cards and synthetic date for the state of the beam-affecting hardware.
 
@@ -583,7 +625,8 @@ class SpsFits:
         return keepCards
 
     def finishHeaderKeys(self, cmd, visit, timeCards, extraCards=None,
-                         exptype=None, expTime=None, gain=None, pfsDesign=None):
+                         exptype=None, expTime=None, gain=None, pfsDesign=None,
+                         metadata=None):
         """ Finish the header. Should be called just before readout starts. Must not block! """
 
         if cmd is None:
@@ -614,6 +657,7 @@ class SpsFits:
         beamConfigCards = self.getBeamConfigCards(cmd, visit)
         spectroCards = self.getSpectroCards(cmd)
         designCards = self.getPfsDesignCards(cmd, exptype, pfsDesign=pfsDesign)
+        metadataCards = self.getMetadataCards(cmd, metadata=metadata)
         mhsCards = self.getMhsCards(cmd)
         lampCards = self.genLampCards(cmd, expTime, visit)
         endCards = self.getEndInstCards(cmd)
@@ -647,6 +691,7 @@ class SpsFits:
         allCards.append(dict(name='W_SITE', value=self.actor.ids.site,
                              comment='PFS DAQ location: Subaru, Jhu, Lam, Asiaa'))
         allCards.extend(designCards)
+        allCards.extend(metadataCards)
         allCards.extend(spectroCards)
 
         allCards.append(dict(name='COMMENT', value='################################ Time cards'))
