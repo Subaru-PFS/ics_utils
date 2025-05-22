@@ -22,6 +22,9 @@ class Part(object):
     def operational(self):
         return self.state == 'ok'
 
+    def requiredState(self, *args, **kwargs):
+        return f'{str(self)}.nominal'
+
 
 class Rda(Part):
     """Placeholder to handle red exchange mechanism operational state and special rules that apply to it.
@@ -91,6 +94,9 @@ class Bia(Part):
         """Part identifier."""
         return f'bia_{self.specModule.specName}'
 
+    def requiredState(self, *args, **kwargs):
+        return f'{str(self)}.off'
+
 
 class Iis(Part):
     """Placeholder to Internal Illumination Sources(engineering fibers) operating state and its special rules.
@@ -127,14 +133,11 @@ class Shutter(Part):
 
     def __init__(self, specModule, arm, state='none'):
         self.arm = arm
-        self.lightBeam = True
         Part.__init__(self, specModule, state=state)
 
     def __str__(self):
         """Part identifier."""
-        name = f'{self.arm}sh_{self.specModule.specName}'
-        name = f'{name}.closed' if not self.lightBeam else name
-        return name
+        return f'{self.arm}sh_{self.specModule.specName}'
 
     @property
     def bitMask(self):
@@ -173,8 +176,9 @@ class Shutter(Part):
 
         return outputLight
 
-    def setLightBeam(self, lightBeam):
-        self.lightBeam = lightBeam
+    def requiredState(self, lightBeam):
+        state = 'close' if not lightBeam else 'open'
+        return f'{str(self)}.{state}'
 
 
 class Cam(SpectroIds, Part):
