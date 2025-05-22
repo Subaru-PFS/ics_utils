@@ -26,6 +26,10 @@ class LightSource(str):
     def useDcbActor(self):
         return self in ['dcb', 'dcb2'] + ['afl9mtp', 'afl12mtp']
 
+    def requiredState(self, *args, **kwargs):
+        req = None if self.lampsActor is None else str(self.lampsActor)
+        return req
+
 
 class NoShutterException(Exception):
     """Exception raised when an exposure is required without any working shutter to ensure exposure time.
@@ -301,10 +305,6 @@ class SpecModule(SpectroIds):
         opeShutters = [shutter for shutter in shutterSet if shutter.operational]
         requiredShutters = opeShutters if lightBeam else opeShutters[-1:]
 
-        # not a fan of this implementation since it leaves state behind, but I think that's safe.
-        for shutter in requiredShutters:
-            shutter.setLightBeam(lightBeam)
-
         return requiredShutters
 
     def dependencies(self, arm, seqObj):
@@ -328,13 +328,12 @@ class SpecModule(SpectroIds):
             """Return lamps/fca/bia/rda dependencies for a given arm and lightBeam."""
             # start with the camera itself.
             deps = [self.cams[arm]]
+            # also requiring that bia is off, in *ANY* exposure.
+            deps += [self.bia]
+
             # lock spectrograph subsystems, note that shutters are dealt separately.
             if lightBeam:
-                deps += [self.fca, self.bia]
-                deps += [self.rda] if arm in ['r', 'm'] else []
-
-                # adding lampActor, will be None for SuNSS.
-                deps += [self.lightSource.lampsActor] if self.lightSource.lampsActor else []
+                deps += [self.lightSource, self.fca, self.rda]
 
             return deps
 
@@ -342,7 +341,8 @@ class SpecModule(SpectroIds):
         deps = specDeps(arm, seqObj.lightBeam)
         deps.extend(self.shutterSet(arm, seqObj.lightBeam))
 
-        return deps
+        required = [dep.requiredState(lightBeam=seqObj.lightBeam) for dep in deps]
+        return [req for req in required if req is not None]
 
     def askAnEngineer(self, seqObj):
         """If NoShutterException is raised, check for special cases, timed dcb exposure is one of them.
