@@ -1,30 +1,34 @@
 import re
 
 
-def pullOutException(trace):
-    """ Try to pull out the full exception trace. """
-    start = re.search("(?<=command failed: )", trace).end()
-    end = re.search("(?<= in )(.*)(?= at )", trace).end()
-    return trace[start:end]
+def truncateFullTrace(fullTrace):
+    """Extract the exception message from a command failure fullTrace."""
+    try:
+        start = re.search(r"(?<=command failed: )", fullTrace).end()
+        end = re.search(r"(?<= in )(.*)(?= at )", fullTrace).end()
+        return fullTrace[start:end]
+    except Exception:
+        return fullTrace
 
 
-def interpretFailure(cmdVar):
-    """ return text which should explain that cmdVar failure. """
+def interpretFailure(cmdVar, doTruncateFullTrace=False):
+    """Return a concise explanation for a failed cmdVar."""
+
     cmdKeys = cmdVarToKeys(cmdVar)
 
     if 'Timeout' in cmdKeys:
         return f"TimeoutError('reached in {cmdVar.timeLim} secs')"
-    elif 'NoTarget' in cmdKeys:
+
+    if 'NoTarget' in cmdKeys:
         return 'actor is not connected'
-    elif 'text' in cmdKeys:
-        trace = cmdKeys['text'].values[0]
-        try:
-            failure = pullOutException(trace)
-        except:
-            failure = trace
-        return failure
-    else:
-        return 'unknown reason'
+
+    if 'text' in cmdKeys:
+        fullTrace = cmdKeys['text'].values[0]
+        if doTruncateFullTrace:
+            return truncateFullTrace(fullTrace)
+        return fullTrace
+
+    return 'unknown reason'
 
 
 def formatLastReply(cmdVar):
