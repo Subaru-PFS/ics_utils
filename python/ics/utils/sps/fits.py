@@ -138,6 +138,16 @@ class SpsFits:
         self.exptype = exptype
         self.pfsDesign = pfsDesign
 
+        # We expect that this object is created early in an exposure (after the
+        # wipe or after the reset read), but late enough for the instrument and
+        # telescope to be fully configured and stable. So we can grab info
+        # which might change at the end of an exposure.
+        self.startingArmNum = self.armNum(cmd)
+
+        # Some Gen2 cards need to be sampled at the start of an
+        # exposure, and some also at the end.
+        self.startingGen2Cards = self.getMhsCardsForActors(cmd, ['gen2'])
+
     def armNum(self, cmd):
         """Return the correct arm number: 1, 2, or 4.
 
@@ -181,7 +191,7 @@ class SpsFits:
 
         """
         arms = {1:'b', 2:'r', 3:'n', 4:'m'}
-        armNum = self.armNum(cmd)
+        armNum = self.startingArmNum
         return arms[armNum]
 
     def getLightSource(self, cmd):
@@ -210,7 +220,7 @@ class SpsFits:
             return 'pfilamps'
         else:
             return lightSource
-        
+
     def getImageCards(self, cmd=None):
         """Return the FITS cards for the image HDU, WCS, basically.
 
@@ -230,7 +240,7 @@ class SpsFits:
 
     def genPhysicalLampCards(self, cmd, expTime, visit):
         """Generate header cards for dcb/pfi/engineering lamps.
-        
+
         Lamp are described by off/on timestamp that accurately track when the lamp switch state.
         The principle is that from those two timestamps and the shutter opening/closing time, you can
         infer the state and how long the lamp was actually used during the exposure.
@@ -256,7 +266,8 @@ class SpsFits:
         # convert times to floats
         shutterOpenTime = pfsTime.Time.fromisoformat(openReturnedAt).timestamp()
         shutterCloseTime = pfsTime.Time.fromisoformat(closeReturnedAt).timestamp()
-        self.logger.info(f'shutterOpenTime={shutterOpenTime}, shutterCloseTime={shutterCloseTime} dt={shutterOpenTime-shutterCloseTime}')
+        self.logger.info(f'shutterOpenTime={shutterOpenTime}, shutterCloseTime={shutterCloseTime} '
+                         f'dt={shutterOpenTime-shutterCloseTime}')
 
         def inferLampStateAndTime(lampKey, lampModel):
             """Translate on/off timestamp to lamp state and duration"""
@@ -265,7 +276,7 @@ class SpsFits:
             offTime = pfsTime.Time.fromisoformat(offIsoTime).timestamp()
             onTime = pfsTime.Time.fromisoformat(onIsoTime).timestamp()
             self.logger.info(f'{lampKey} {onTime} {offTime} {onTime-offTime}')
-            
+
             offTime = shutterCloseTime if offTime < onTime else offTime
             start = min(max(onTime, shutterOpenTime), shutterCloseTime)
             end = max(min(offTime, shutterCloseTime), shutterOpenTime)
@@ -304,7 +315,7 @@ class SpsFits:
             except Exception as e:
                 cmd.warn(f'text="failed to get {lampSource} model, no lampCards could be retrieved : {e}"')
 
-        # Engineering fiber lamps      
+        # Engineering fiber lamps
         iisLampDefs = [('halogen', 'W_ENIQTH', 'W_ILQTHT'),
                        ('argon', 'W_ENIARG', 'W_ILARGT'),
                        ('hgar', 'W_ENIHGA', 'W_ILHGAT'),
@@ -554,24 +565,38 @@ class SpsFits:
 
         return allCards
 
-    def getMhsCards(self, cmd):
-        """ Gather FITS cards from all *other* actors we are interested in. """
+    def getMhsCardsForActors(self, cmd, actors):
+        """Gather FITS cards from some actors we are interested in."""
+
+        modelNames = actors
+
+        cmd.debug(f'text="fetching MHS cards from {modelNames}"')
+        cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
+                                          modelNames=modelNames,
+                                          shortNames=True)
+        cmd.debug('text="fetched %d MHS cards..."' % (len(cards)))
+
+        return cards
+
+    def getMhsCards(self, cmd, excludeActors=None):
+        """Gather FITS cards from all *other* actors we are interested in."""
 
         modelNames = list(self.actor.models.keys())
         modelNames.remove(self.actor.name)
+
+        if excludeActors is not None:
+            for a in excludeActors:
+                if a in modelNames:
+                    modelNames.remove(a)
+
         cmd.debug(f'text="provisionally fetching MHS cards from {modelNames}"')
 
-        # Lamps are picked up more carefully: we need to select exactly one of these
-        lampSource = self.getLampSource(cmd)
+        # Lamps are picked up more carefully later
         for lampsName in 'pfilamps', 'dcb', 'dcb2':
             if lampsName in modelNames:
                 modelNames.remove(lampsName)
 
-        cmd.debug(f'text="fetching MHS cards from {modelNames}"')
-        cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
-                                          modelNames=modelNames, shortNames=True)
-        cmd.debug('text="fetched %d MHS cards..."' % (len(cards)))
-
+        cards = self.getMhsCardsForActors(modelNames)
         return cards
 
     def getStartInstCards(self, cmd):
@@ -582,7 +607,7 @@ class SpsFits:
         return cards
 
     def getEndInstCards(self, cmd):
-        """Gather cards at the end of integration. Calibration lamps, etc. """
+        """Gather cards at the end of integration. Calibration lamps, etc."""
 
         try:
             lightSource = self.getLightSource(cmd)
@@ -591,9 +616,7 @@ class SpsFits:
             else:
                 modelNames = [lightSource]
             cmd.debug(f'text="fetching ending MHS cards from {modelNames}"')
-            cards = fitsMhs.gatherHeaderCards(cmd, self.actor,
-                                              modelNames=modelNames,shortNames=True)
-            cmd.debug('text="fetched %d ending MHS cards..."' % (len(cards)))
+            cards = self.getMhsCardsForActors(cmd, modelNames)
         except Exception as e:
             cmd.warn(f'text="failed to fetch ending cards: {e}"')
 
@@ -627,7 +650,10 @@ class SpsFits:
     def finishHeaderKeys(self, cmd, visit, timeCards, extraCards=None,
                          exptype=None, expTime=None, gain=None, pfsDesign=None,
                          metadata=None):
-        """ Finish the header. Should be called just before readout starts. Must not block! """
+        """Finish the header.
+
+        Should be called just before readout starts. Must not block!
+        """
 
         if cmd is None:
             cmd = self.cmd
@@ -658,12 +684,13 @@ class SpsFits:
         spectroCards = self.getSpectroCards(cmd)
         designCards = self.getPfsDesignCards(cmd, exptype, pfsDesign=pfsDesign)
         metadataCards = self.getMetadataCards(cmd, metadata=metadata)
-        mhsCards = self.getMhsCards(cmd)
+        mhsCards = self.startingGen2Cards
+        mhsCards.extend(self.getMhsCards(cmd, excludeActors=['gen2']))
         lampCards = self.genLampCards(cmd, expTime, visit)
         endCards = self.getEndInstCards(cmd)
 
         frameLetter = 'B' if self.arm(cmd) == 'n' else 'A'
-        frameCamId = f'{self.actor.ids.specNum}{self.armNum(cmd)}'
+        frameCamId = f'{self.actor.ids.specNum}{self.startingArmNum}'
 
         # We might be overriding the Subaru/gen2 OBJECT.
         fitsUtils.moveCard(designCards, mhsCards, 'OBJECT')
@@ -682,7 +709,7 @@ class SpsFits:
         allCards.append(dict(name='COMMENT', value='################################ PFS main IDs'))
 
         allCards.append(dict(name='W_VISIT', value=int(visit), comment='PFS exposure visit number'))
-        allCards.append(dict(name='W_ARM', value=self.armNum(cmd),
+        allCards.append(dict(name='W_ARM', value=self.startingArmNum,
                              comment='Spectrograph arm 1=b, 2=r, 3=n, 4=medRed'))
         allCards.append(dict(name='W_SPMOD', value=self.actor.ids.specNum,
                              comment='Spectrograph module. 1-4 at Subaru'))
