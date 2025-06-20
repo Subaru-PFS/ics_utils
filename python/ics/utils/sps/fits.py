@@ -169,7 +169,7 @@ class SpsFits:
             return arms[self.actor.grating]
 
         try:
-            visit, rexm = self.actor.enuModel.keyVarDict['redResolution'].getValue()
+            rexm = self.actor.enuModel.keyVarDict['rexm'].getValue()
         except Exception as e:
             self.logger.warn('failed to get enu grating position: %s', e)
             cmd.warn('text="failed to get enu grating position: using low"')
@@ -596,7 +596,7 @@ class SpsFits:
             if lampsName in modelNames:
                 modelNames.remove(lampsName)
 
-        cards = self.getMhsCardsForActors(modelNames)
+        cards = self.getMhsCardsForActors(cmd, modelNames)
         return cards
 
     def getStartInstCards(self, cmd):
@@ -691,6 +691,7 @@ class SpsFits:
 
         frameLetter = 'B' if self.arm(cmd) == 'n' else 'A'
         frameCamId = f'{self.actor.ids.specNum}{self.startingArmNum}'
+        cam = f'{self.arm(cmd)}{self.actor.ids.specNum}'
 
         # We might be overriding the Subaru/gen2 OBJECT.
         fitsUtils.moveCard(designCards, mhsCards, 'OBJECT')
@@ -713,7 +714,7 @@ class SpsFits:
                              comment='Spectrograph arm 1=b, 2=r, 3=n, 4=medRed'))
         allCards.append(dict(name='W_SPMOD', value=self.actor.ids.specNum,
                              comment='Spectrograph module. 1-4 at Subaru'))
-        allCards.append(dict(name='W_CAM', value=self.actor.ids.camName,
+        allCards.append(dict(name='W_CAM', value=cam,
                              comment='PFS camera name'))
         allCards.append(dict(name='W_SITE', value=self.actor.ids.site,
                              comment='PFS DAQ location: Subaru, Jhu, Lam, Asiaa'))
