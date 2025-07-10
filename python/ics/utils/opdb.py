@@ -12,27 +12,27 @@ class opDB:
         return psycopg2.connect(dbname='opdb', user='pfs', host=opDB.host)
 
     @staticmethod
-    def fetchall(query):
+    def fetchall(query, params=None):
         """ fetch all rows from query """
         with opDB.connect() as conn:
             with conn.cursor() as curs:
-                curs.execute(query)
+                curs.execute(query, params)
                 return np.array(curs.fetchall())
 
     @staticmethod
-    def fetchone(query):
+    def fetchone(query, params=None):
         """ fetch one row from query """
         with opDB.connect() as conn:
             with conn.cursor() as curs:
-                curs.execute(query)
+                curs.execute(query, params)
                 return np.array(curs.fetchone())
 
     @staticmethod
-    def commit(query, kwargs):
+    def commit(query, params=None):
         """ execute query and commit """
         with opDB.connect() as conn:
             with conn.cursor() as curs:
-                curs.execute(query, kwargs)
+                curs.execute(query, params)
             conn.commit()
 
     @staticmethod
