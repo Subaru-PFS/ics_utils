@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pfs-ics-utils"
+description = "Common util tools for the Subaru ICS actors"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "astropy",
+    "pytz",
+    "pandas",
+    "psycopg2-binary",
+    "scipy",
+    "fitsio",
+    "gitpython",
+    "twisted",
+    "sdss-opscore",
+    "sdss-actorcore",
+    "astropy_iers_data",
+]
+dynamic = ["version"]
+
+[tool.setuptools.packages.find]
+where = ["python/"]
+include = ["ics", "ics.*"]
+
+[tool.black]
+line-length = 110
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 110
+known_first_party = ["ics"]
+
+[tool.lsst_versions]
+write_to = "python/ics/utils/version.py"
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"  # Recommended as best practice
+
+[tool.pydocstyle]
+convention = "numpy"
