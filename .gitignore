@@ -1,3 +1,6 @@
+# Ignore the generated version file
+python/ics/utils/version.py
+
 ### JetBrains template
 .idea/
 

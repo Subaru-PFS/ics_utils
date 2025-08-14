@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools >= 77.0.3"]
+requires = [
+    "setuptools >= 77.0.3",
+    "lsst-versions",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -14,15 +17,24 @@ dependencies = [
     "gitpython",
     "numpy",
     "pandas",
+    "pfs-datamodel @ git+https://github.com/Subaru-PFS/datamodel.git",
+    "pfs-tron-actorcore @ git+https://github.com/Subaru-PFS/tron_actorcore.git@tickets/INSTRM-2641",
+    "pfs-utils @ git+https://github.com/Subaru-PFS/pfs_utils.git",
     "psycopg2-binary",
     "pytz",
     "scipy",
-    "sdss-actorcore",
-    "sdss-opscore",
     "sqlalchemy",
     "twisted",
 ]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "pytest>=8.0",
+]
+
 
 [tool.setuptools.packages.find]
 where = ["python/"]
