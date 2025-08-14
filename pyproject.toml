@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools >= 77.0.3"]
+requires = [
+    "setuptools >= 77.0.3",
+    "lsst-versions",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -17,11 +20,20 @@ dependencies = [
     "fitsio",
     "gitpython",
     "twisted",
-    "sdss-opscore",
-    "sdss-actorcore",
     "astropy_iers_data",
+    "pfs-datamodel @ git+https://github.com/Subaru-PFS/datamodel.git",
+    "pfs-tron-actorcore @ git+https://github.com/Subaru-PFS/tron_actorcore.git",
+    "pfs-utils @ git+https://github.com/Subaru-PFS/pfs_utils.git",
 ]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "pytest>=8.0",
+]
+
 
 [tool.setuptools.packages.find]
 where = ["python/"]
