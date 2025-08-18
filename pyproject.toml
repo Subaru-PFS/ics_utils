@@ -8,18 +8,19 @@ description = "Common util tools for the Subaru ICS actors"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "numpy",
     "astropy",
-    "pytz",
-    "pandas",
-    "psycopg2-binary",
-    "scipy",
+    "astropy_iers_data",
     "fitsio",
     "gitpython",
-    "twisted",
-    "sdss-opscore",
+    "numpy",
+    "pandas",
+    "psycopg2-binary",
+    "pytz",
+    "scipy",
     "sdss-actorcore",
-    "astropy_iers_data",
+    "sdss-opscore",
+    "sqlalchemy",
+    "twisted",
 ]
 dynamic = ["version"]
 

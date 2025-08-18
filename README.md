@@ -11,6 +11,11 @@ Common utility tools for the Subaru Prime Focus Spectrograph (PFS) Instrument Co
 
 ## Features
 
+- Database utilities
+    - Connection classes for the databases used by ICS, including:
+        - OpDB (Operational database)
+        - GaiaDB (GAIA star catalog database)
+        - QaDB (Quality Assurance database)
 - FITS utilities
     - Structured FITS writer for PFS-specific headers and data (ics.utils.fits)
     - WCS/timecards helpers and convenience functions
@@ -28,22 +33,110 @@ Common utility tools for the Subaru Prime Focus Spectrograph (PFS) Instrument Co
 - Misc utilities
     - Time, threading helpers, MHS integration, logbook support, versions helper
 
-## Installation
+## Usage
 
-> Note: This package is mostly used by other ICS actors and services, so direct installation may not be necessary unless
-> you are developing or testing it independently.
+### Database usage
+
+- Authentication: Passwords are expected to be managed externally by libpq (e.g., via ~/.pgpass). The helpers use
+  psycopg2 through SQLAlchemy and do not embed passwords.
+
+#### Operational DB convenience class
+
+```python
+from ics.utils.database.opdb import OpDB
+
+# Uses default connection settings for the PFS operational DB
+opdb = OpDB()
+rows = opdb.fetchone("SELECT max(pfs_visit_id) FROM pfs_visit")
+```
+
+##### Legacy API (deprecated)
+
+Note: Deprecated legacy module `ics.utils.opdb` in favor of the class-based database API at
+`ics.utils.database.opdb.opDB`.
+
+###### Migration guidance
+
+- Previous usage (deprecated):
+    - `from ics.utils import opdb` or `from ics.utils.opdb import opDB` and then static calls like `opDB.fetchall(...)`.
+- Recommended usage:
+    - `from ics.utils.database.opdb import OpDB`
+    - Create an instance and use instance methods for connections and queries:
+        - `db = OpDB()`  # defaults to dbname=opdb, user=pfs, host=pfsa-db
+        - `rows = db.fetchall("SELECT ...", params)`
+        - `row = db.fetchone("SELECT ...", params)`
+        - `db.insert("table", column=value, ...)`
+
+```python
+from ics.utils.opdb import opDB
+
+# Warning: this legacy API is deprecated; prefer ics.utils.database.opdb.OpDB
+# It returns a raw psycopg2 connection when using connect()
+with opDB.connect() as psyco_conn:
+    with psyco_conn.cursor() as cur:
+        cur.execute("SELECT 1")
+        print(cur.fetchall())
+
+# Convenience wrappers mirroring the new API
+rows = opDB.fetchall("SELECT 1")
+```
+
+#### Gaia catalog database (read-only)
+
+```python
+from ics.utils.database.gaia import GaiaDB
+
+gaia = GaiaDB()  # defaults: host=g2sim-cat, user=obsuser, dbname=star_catalog, port=5438
+# Read queries are allowed
+stars = gaia.fetchall("SELECT ra, dec, phot_g_mean_mag FROM gaia3 LIMIT 5")
+
+# Writes are intentionally no-ops and will emit a warning.
+gaia.insert("gaia3", ra=0)  # no-op
+```
+
+#### Generic DB usage
+
+```python
+from ics.utils.database.db import DB
+
+# Option 1: provide parameters
+opdb = DB(dbname="opdb", user="pfs", host="db-ics", port=5432)
+rows = opdb.fetchall("SELECT 1 AS one")
+print(rows)  # numpy array of rows
+
+# Option 2: DSN string
+opdb2 = DB("dbname=opdb user=pfs host=db-ics port=5432")
+
+# Option 3: mapping
+opdb3 = DB({"dbname": "opdb", "user": "pfs", "host": "db-ics", "port": 5432})
+
+# Fetch one row with parameters
+n = opdb.fetchone("SELECT %(x)s::int AS val", {"x": 42})
+
+# Insert helper (builds an INSERT ... VALUES ... using named parameters)
+opdb.insert(
+    "pfs_visit",
+    pfs_visit_id=1,
+    pfs_visit_description="i am the first pfs visit",
+)
+
+# Reuse one connection for multiple statements
+with opdb.connection() as conn:
+    conn.exec_driver_sql("SET LOCAL statement_timeout = 5000")
+    conn.exec_driver_sql("SELECT 1")
+```
+
+Notes
+
+- Connection pooling: DB/OpDB cache a SQLAlchemy Engine with pooling. Each helper method checks out a connection for the
+  duration of the call. Use db.connection() to explicitly reuse a single connection.
+- Result format: fetchone/fetchall return numpy arrays for backward compatibility.
+
+## Installation
 
 ### Requirements
 
 - Python: >= 3.11
-- Core dependencies (installed automatically):
-    - numpy, scipy, pandas, astropy, astropy_iers_data
-    - fitsio
-    - pytz
-    - gitpython
-    - twisted
-    - psycopg2-binary
-    - sdss-opscore, sdss-actorcore
 
 ### EUPS Installation with LSST Stack
 
@@ -75,10 +168,6 @@ Alternatively, you can install the package using pip:
    pip install .
    ```
 
-## Usage
-
-This package is intended to be used as a library within the PFS ICS ecosystem.
-
 ## Project Structure
 
 - python/ics/utils/
@@ -90,19 +179,6 @@ This package is intended to be used as a library within the PFS ICS ecosystem.
     - visit/: visit and field models and manager
     - time.py, threading.py, opdb.py, logbook.py, versions.py, etc.
 - lua/digitalLoggers/: Lua scripts for Digital Loggers devices
-
-## Development
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-### Versioning
-
-This project follows semantic versioning.
 
 ## License
 
