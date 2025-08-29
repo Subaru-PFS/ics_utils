@@ -97,6 +97,8 @@ gaia.insert("gaia3", ra=0)  # no-op
 #### Generic DB usage
 
 ```python
+import pandas as pd
+
 from ics.utils.database.db import DB
 
 # Option 1: provide parameters
@@ -112,6 +114,19 @@ opdb3 = DB({"dbname": "opdb", "user": "pfs", "host": "db-ics", "port": 5432})
 
 # Fetch one row with parameters
 n = opdb.fetchone("SELECT %(x)s::int AS val", {"x": 42})
+
+# Insert many rows via a dataframe
+df0 = pd.DataFrame([
+    {"agc_frame_id": 123456, "spot_id": 1, ...},
+    {"agc_frame_id": 123456, "spot_id": 2, ...},
+])
+opdb.insert_dataframe(df=df0, table='agc_match')
+
+# Fetch a dataframe
+df1 = opdb.fetch_dataframe(
+    query="SELECT * FROM agc_match WHERE agc_exposure_id = :frame_id", 
+    params=dict(frame_id=123456)
+)
 
 # Insert helper (builds an INSERT ... VALUES ... using named parameters)
 opdb.insert(

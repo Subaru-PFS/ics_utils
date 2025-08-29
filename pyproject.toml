@@ -33,6 +33,7 @@ dev = [
     "black",
     "isort",
     "pytest>=8.0",
+    "ruff"
 ]
 
 
