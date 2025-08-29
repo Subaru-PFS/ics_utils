@@ -10,6 +10,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Need to clone everything for the git tags.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,4 +33,4 @@ jobs:
 
       - name: Verify import
         run: |
-          python -c "import ics.utils as u; print('Imported ics.utils from:', u.__file__)"
+          python -c "from ics.utils.version import __version__; print('Created version', __version__)"
