@@ -33,7 +33,9 @@ armSpecs = dict(b=dict(wavemin=380.0,
                        wavemid=1107.0,
                        fringe=1007.0))
 
-def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None):
+def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None,
+                      sequenceId=None, sequenceType=None, sequenceName=None, sequenceComments=None,
+                      groupId=None, groupName=None):
     """Return the required PHDU cards for the pfsConfig files.
 
     This is likely to evolve. Specifically, we will sometimes not have a single PROP-ID.
@@ -48,6 +50,18 @@ def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None):
        the PFS visit for this pfsConfig
     expType : `str`
        one of the standard exposure types.
+    sequenceId : int, optional
+        IIC sequence id.
+    sequenceType : str, optional
+        IIC sequence type.
+    sequenceName : str, optional
+        IIC sequence name.
+    sequenceComments : str, optional
+        IIC sequence comments.
+    groupId : int, optional
+        Gen2 group id.
+    groupName : str, optional
+        Gen2 group name.
     dINSROT : float, optional
         INSROT delta between SPS visit and convergence [deg].
 
@@ -93,6 +107,20 @@ def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None):
 
     if dINSROT is not None:
         cards['W_DINROT'] = (float(dINSROT), "[deg] INSROT delta between SPS visit and convergence.")
+
+    # Optional sequence / grouping metadata
+    if sequenceId is not None:
+        cards['W_SEQID'] = (int(sequenceId), 'IIC sequence id')
+    if sequenceType is not None:
+        cards['W_SEQTYP'] = (str(sequenceType), 'IIC sequence type')
+    if sequenceName is not None:
+        cards['W_SEQNAM'] = (str(sequenceName), 'IIC sequence name')
+    if sequenceComments is not None:
+        cards['W_SEQCMN'] = (str(sequenceComments), 'IIC sequence comments')
+    if groupId is not None:
+        cards['W_GRPID'] = (int(groupId), 'Gen2 group id')
+    if groupName is not None:
+        cards['W_GRPNAM'] = (str(groupName), 'Gen2 group name')
 
     return cards
 
