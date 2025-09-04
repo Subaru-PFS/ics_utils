@@ -33,7 +33,7 @@ armSpecs = dict(b=dict(wavemin=380.0,
                        wavemid=1107.0,
                        fringe=1007.0))
 
-def getPfsConfigCards(actor, cmd, visit, expType='test'):
+def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None):
     """Return the required PHDU cards for the pfsConfig files.
 
     This is likely to evolve. Specifically, we will sometimes not have a single PROP-ID.
@@ -48,6 +48,8 @@ def getPfsConfigCards(actor, cmd, visit, expType='test'):
        the PFS visit for this pfsConfig
     expType : `str`
        one of the standard exposure types.
+    dINSROT : float, optional
+        INSROT delta between SPS visit and convergence [deg].
 
     Returns
     -------
@@ -88,6 +90,9 @@ def getPfsConfigCards(actor, cmd, visit, expType='test'):
     cards['PROP-ID'] = (proposal, 'Proposal ID')
     cards['DATE-OBS'] = (dayStr, '[YMD] pfsConfig creation date, UTC')
     cards['EQUINOX'] = (2000.0, '[year] Fixed telescope equinox')
+
+    if dINSROT is not None:
+        cards['W_DINROT'] = (float(dINSROT), "[deg] INSROT delta between SPS visit and convergence.")
 
     return cards
 
