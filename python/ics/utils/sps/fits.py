@@ -106,7 +106,7 @@ def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None,
     cards['EQUINOX'] = (2000.0, '[year] Fixed telescope equinox')
 
     if dINSROT is not None:
-        cards['W_DINROT'] = (float(dINSROT), "[deg] INSROT delta between SPS visit and convergence.")
+        cards['W_DINROT'] = (float(dINSROT), "[deg] INSROT(SPS visit) - INSROT0(convergence).")
 
     # Optional sequence / grouping metadata
     if sequenceId is not None:
