@@ -9,14 +9,14 @@ class OpDB(DB):
     a DSN string/mapping; DSN takes precedence as in the base class.
 
     Examples:
-        # Use operational defaults (host=pfsa-db, user=pfs, dbname=opdb, port=5432)
+        # Use operational defaults (host=db-ics, user=pfs, dbname=opdb, port=5432)
         db = OpDB()
 
         # Override specific parameters
         db = OpDB(host="localhost")
 
         # Or use a DSN string
-        db = OpDB("dbname=opdb user=pfs host=pfsa-db")
+        db = OpDB("dbname=opdb user=pfs host=db-ics")
 
     See Also
     --------
@@ -25,7 +25,7 @@ class OpDB(DB):
     """
 
     # Default parameters for the operational database
-    host = "pfsa-db"
+    host = "db-ics"
     user = "pfs"
     dbname = "opdb"
     port = 5432
