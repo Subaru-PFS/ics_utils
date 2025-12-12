@@ -35,117 +35,29 @@ Common utility tools for the Subaru Prime Focus Spectrograph (PFS) Instrument Co
 
 ## Usage
 
-### Database usage
+### Database usage (DEPRECATED)
 
-- Authentication: Passwords are expected to be managed externally by libpq (e.g., via ~/.pgpass). The helpers use
-  psycopg2 through SQLAlchemy and do not embed passwords.
+This package's database helpers (for example, `ics.utils.database.db.DB`,
+`ics.utils.database.opdb.OpDB`, `ics.utils.database.gaia.GaiaDB`, and
+`ics.utils.database.qadb.QaDB`) are deprecated. The implementations and
+canonical documentation have moved to the separate `pfs_utils` project.
 
-#### Operational DB convenience class
+Please consult the `pfs_utils` README and use the `pfs.utils.database` module
+there (for example, `pfs.utils.database.db.DB`) instead of the classes from
+this repository. The `ics_utils` copies remain only for backward compatibility
+and will emit deprecation warnings at runtime; they may be removed in a future
+release.
 
-```python
-from ics.utils.database.opdb import OpDB
+For migration:
 
-# Uses default connection settings for the PFS operational DB
-opdb = OpDB()
-rows = opdb.fetchone("SELECT max(pfs_visit_id) FROM pfs_visit")
-```
+- Replace imports like `from ics.utils.database.db import DB` with
+  `from pfs.utils.database.db import DB`.
+- Check the documentation at `pfs_utils` for any changes in usage or API.
 
-##### Legacy API (deprecated)
+If you need a direct pointer to the upstream documentation, see the README in
+the `pfs_utils` project (the authoritative docs for the database helpers).
 
-Note: Deprecated legacy module `ics.utils.opdb` in favor of the class-based database API at
-`ics.utils.database.opdb.opDB`.
-
-###### Migration guidance
-
-- Previous usage (deprecated):
-    - `from ics.utils import opdb` or `from ics.utils.opdb import opDB` and then static calls like `opDB.fetchall(...)`.
-- Recommended usage:
-    - `from ics.utils.database.opdb import OpDB`
-    - Create an instance and use instance methods for connections and queries:
-        - `db = OpDB()`  # defaults to dbname=opdb, user=pfs, host=pfsa-db
-        - `rows = db.fetchall("SELECT ...", params)`
-        - `row = db.fetchone("SELECT ...", params)`
-        - `db.insert("table", column=value, ...)`
-
-```python
-from ics.utils.opdb import opDB
-
-# Warning: this legacy API is deprecated; prefer ics.utils.database.opdb.OpDB
-# It returns a raw psycopg2 connection when using connect()
-with opDB.connect() as psyco_conn:
-    with psyco_conn.cursor() as cur:
-        cur.execute("SELECT 1")
-        print(cur.fetchall())
-
-# Convenience wrappers mirroring the new API
-rows = opDB.fetchall("SELECT 1")
-```
-
-#### Gaia catalog database (read-only)
-
-```python
-from ics.utils.database.gaia import GaiaDB
-
-gaia = GaiaDB()  # defaults: host=g2sim-cat, user=obsuser, dbname=star_catalog, port=5438
-# Read queries are allowed
-stars = gaia.fetchall("SELECT ra, dec, phot_g_mean_mag FROM gaia3 LIMIT 5")
-
-# Writes are intentionally no-ops and will emit a warning.
-gaia.insert("gaia3", ra=0)  # no-op
-```
-
-#### Generic DB usage
-
-```python
-import pandas as pd
-
-from ics.utils.database.db import DB
-
-# Option 1: provide parameters
-opdb = DB(dbname="opdb", user="pfs", host="db-ics", port=5432)
-rows = opdb.fetchall("SELECT 1 AS one")
-print(rows)  # numpy array of rows
-
-# Option 2: DSN string
-opdb2 = DB("dbname=opdb user=pfs host=db-ics port=5432")
-
-# Option 3: mapping
-opdb3 = DB({"dbname": "opdb", "user": "pfs", "host": "db-ics", "port": 5432})
-
-# Fetch one row with parameters
-n = opdb.fetchone("SELECT %(x)s::int AS val", {"x": 42})
-
-# Insert many rows via a dataframe
-df0 = pd.DataFrame([
-    {"agc_frame_id": 123456, "spot_id": 1, ...},
-    {"agc_frame_id": 123456, "spot_id": 2, ...},
-])
-opdb.insert_dataframe(df=df0, table='agc_match')
-
-# Fetch a dataframe
-df1 = opdb.fetch_dataframe(
-    query="SELECT * FROM agc_match WHERE agc_exposure_id = :frame_id", 
-    params=dict(frame_id=123456)
-)
-
-# Insert helper (builds an INSERT ... VALUES ... using named parameters)
-opdb.insert(
-    "pfs_visit",
-    pfs_visit_id=1,
-    pfs_visit_description="i am the first pfs visit",
-)
-
-# Reuse one connection for multiple statements
-with opdb.connection() as conn:
-    conn.exec_driver_sql("SET LOCAL statement_timeout = 5000")
-    conn.exec_driver_sql("SELECT 1")
-```
-
-Notes
-
-- Connection pooling: DB/OpDB cache a SQLAlchemy Engine with pooling. Each helper method checks out a connection for the
-  duration of the call. Use db.connection() to explicitly reuse a single connection.
-- Result format: fetchone/fetchall return numpy arrays for backward compatibility.
+### Other usage sections remain unchanged.
 
 ## Installation
 
