@@ -1,8 +1,22 @@
+import warnings
+
+from typing_extensions import deprecated
+
 from ics.utils.database.db import DB
 
 
+# Module-level deprecation notice for this convenience subclass
+warnings.warn(
+    "ics.utils.database.opdb.OpDB is deprecated; please use pfs.utils.database.db.OpDB instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+@deprecated("ics.utils.database.opdb.OpDB is deprecated; please use pfs.utils.database.db.OpDB instead.")
 class OpDB(DB):
-    """Operational database convenience subclass of DB.
+    """Deprecated: use pfs.utils.database.db.OpDB instead.
+
+    Operational database convenience subclass of DB.
 
     Provides sensible defaults for the PFS operational database and otherwise
     behaves like the generic DB helper. You can override any parameter or pass
@@ -29,3 +43,11 @@ class OpDB(DB):
     user = "pfs"
     dbname = "opdb"
     port = 5432
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "ics.utils.database.opdb.OpDB is deprecated; please use pfs.utils.database.db.OpDB instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
