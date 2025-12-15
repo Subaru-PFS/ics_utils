@@ -1,22 +1,8 @@
-import warnings
-
-from typing_extensions import deprecated
-
 from ics.utils.database.db import ReadOnlyDB
 
 
-# Module-level deprecation notice for this convenience subclass
-warnings.warn(
-    "ics.utils.database.gaia.GaiaDB is deprecated; please use pfs.utils.database.db.GaiaDB instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
-@deprecated("ics.utils.database.gaia.GaiaDB is deprecated; please use pfs.utils.database.db.GaiaDB instead.")
 class GaiaDB(ReadOnlyDB):
-    """Deprecated: use pfs.utils.database.db.GaiaDB instead.
-
-    Gaia catalog database convenience subclass of DB.
+    """Gaia catalog database convenience subclass of DB.
 
     Provides sensible defaults for the Gen2 Gaia star catalog database and otherwise
     behaves like the generic DB helper. You can override any parameter or pass
@@ -45,11 +31,3 @@ class GaiaDB(ReadOnlyDB):
     user = "obsuser"
     dbname = "star_catalog"
     port = 5438
-
-    def __init__(self, *args, **kwargs):
-        warnings.warn(
-            "ics.utils.database.gaia.GaiaDB is deprecated; please use pfs.utils.database.db.GaiaDB instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)
