@@ -8,23 +8,10 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
-from typing_extensions import deprecated
-
-# Module-level deprecation notice
-warnings.warn(
-    "The classes in ics.utils.database.db (e.g. DB, ReadOnlyDB) are deprecated; "
-    "please use the equivalent classes in pfs.utils.database.db (for example, "
-    "pfs.utils.database.db.DB) instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
 
 
-@deprecated("ics.utils.database.db.DB is deprecated; please use pfs.utils.database.db.DB instead.")
 class DB:
-    """Deprecated: use pfs.utils.database.db.DB instead.
-
-    Generic DB helper that accepts a DSN string or connection parameters.
+    """Generic DB helper that accepts a DSN string or connection parameters.
 
     This class caches a SQLAlchemy Engine, which manages a pool of connections.
     Individual methods check out a connection from the pool for the duration of
@@ -75,14 +62,6 @@ class DB:
             of connection parameters. If provided, it takes precedence over host/user/dbname.
         """
         self.logger = logging.getLogger(f"DB-{dbname}")
-
-        # Warn at runtime when the class is instantiated to make the deprecation
-        # obvious to callers who may not notice the module-level warning.
-        warnings.warn(
-            "ics.utils.database.db.DB is deprecated; please use pfs.utils.database.db.DB instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
         self.host = host if host is not None else self.host
         self.user = user if user is not None else self.user
@@ -322,24 +301,12 @@ class DB:
             raise
 
 
-@deprecated("ics.utils.database.db.ReadOnlyDB is deprecated")
 class ReadOnlyDB(DB):
-    """Deprecated: use pfs.utils.database.db.ReadOnlyDB instead.
-
-    Read-only database convenience subclass of DB.
+    """Read-only database convenience subclass of DB.
 
     This class merely overrides the `commit` and `insert` methods.
 
     """
-
-    def __init__(self, *args, **kwargs) -> None:
-        # Runtime deprecation warning so instantiators get a clear message.
-        warnings.warn(
-            "ics.utils.database.db.ReadOnlyDB is deprecated; please use pfs.utils.database.db.ReadOnlyDB instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)
 
     def commit(self, query: str, params: Optional[Union[tuple, list, dict]] = None):
         """No-op commit for read-only database.
