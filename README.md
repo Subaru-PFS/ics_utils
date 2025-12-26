@@ -11,7 +11,7 @@ Common utility tools for the Subaru Prime Focus Spectrograph (PFS) Instrument Co
 
 ## Features
 
-- Database utilities
+- Database utilities **DEPRECATED LEGACY MODULE**: Use `pfs.utils.database` instead.
     - Connection classes for the databases used by ICS, including:
         - OpDB (Operational database)
         - GaiaDB (GAIA star catalog database)
@@ -35,7 +35,9 @@ Common utility tools for the Subaru Prime Focus Spectrograph (PFS) Instrument Co
 
 ## Usage
 
-### Database usage
+### Database usage - DEPRECATED LEGACY MODULE
+
+> Note: The legacy database module `ics.utils.opdb` is deprecated. Use the new class-based API at `pfs.utils.database` and related classes instead.
 
 - Authentication: Passwords are expected to be managed externally by libpq (e.g., via ~/.pgpass). The helpers use
   psycopg2 through SQLAlchemy and do not embed passwords.

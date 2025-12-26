@@ -1,7 +1,7 @@
 import threading
 
 import ics.utils.visit.exception as exception
-from ics.utils.opdb import opDB
+from pfs.utils.database.opdb import OpDB
 
 
 class Visit(object):
@@ -32,7 +32,7 @@ class Visit(object):
 
     @property
     def isPopulated(self):
-        return opDB.fetchone(f'select pfs_visit_id from {self.exposureTable} where pfs_visit_id={self.visitId}')
+        return OpDB().query_scalar(f'select pfs_visit_id from {self.exposureTable} where pfs_visit_id={self.visitId}')
 
     @staticmethod
     def fromCaller(visitId, caller, name):
@@ -98,7 +98,7 @@ class FpsVisit(Visit):
 
     @property
     def isPfsConfig0Populated(self):
-        return opDB.fetchone(f'select visit0 from pfs_config where visit0={self.visitId}')
+        return OpDB().query_scalar(f'select visit0 from pfs_config where visit0={self.visitId}')
 
 
 class SpsVisit(Visit):

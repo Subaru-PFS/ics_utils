@@ -2,7 +2,7 @@ import os
 import re
 
 import pandas as pd
-from ics.utils.opdb import opDB
+from pfs.utils.database.opdb import OpDB
 
 pd.set_option('display.max_colwidth', None)
 
@@ -49,7 +49,8 @@ def buildSequenceSummary(allRows):
 
 
 def spsLogbook(directory):
-    allRows = pd.DataFrame(opDB.fetchall(sql_all), columns=allColumns)
+    allRows = OpDB().query_dataframe(sql_all)
+    allRows.columns = allColumns
     opdbLogs = buildSequenceSummary(allRows)
     output = os.path.join(directory, 'index.html')
     opdbLogs.to_html(output)
