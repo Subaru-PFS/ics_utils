@@ -78,8 +78,17 @@ def getPfsConfigCards(actor, cmd, visit, expType='test', dINSROT=None,
         cmd.warn('text="failed to load gen2 model: %s"' % (e))
         return cards
 
-    observatory, telescope, instrument = [str(v) for v in gen2['inst_ids'].getValue()]
-    proposal, mode, allocation, observers = [str(v) for v in gen2['program'].getValue()]
+    try:
+        observatory, telescope, instrument = [str(v) for v in gen2['inst_ids'].getValue()]
+    except ValueError:
+        cmd.warn('text="failed to get sane for the gen2 inst_ids; making some up"')
+        observatory, telescope, instrument = "Subaru", "Subaru", "PFS"
+
+    try:
+        proposal, mode, allocation, observers = [str(v) for v in gen2['program'].getValue()]
+    except ValueError:
+        cmd.warn('text="failed to get sane for the gen2 program; making some up"')
+        proposal, mode, allocation, observers = "o99999", "unknown", "unknown", "unknown"
 
     # Adapt to NAOJ conventions
     if expType.lower() == 'arc':
