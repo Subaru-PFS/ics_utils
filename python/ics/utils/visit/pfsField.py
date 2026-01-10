@@ -116,7 +116,7 @@ class PfsField(object):
         if designId != self.pfsDesignId:
             return
 
-        lastDate = max(glob.glob(os.path.join('/data/raw', '*/')), key=os.path.getmtime)
+        lastDate = max(glob.glob('/data/raw/20*-*-*'), key=os.path.getmtime)
         dirName = os.path.join(lastDate, 'pfsConfig')
         pfsConfigPath = os.path.join(dirName, 'pfsConfig-0x%016x-%06d.fits' % (designId, visit0))
 
