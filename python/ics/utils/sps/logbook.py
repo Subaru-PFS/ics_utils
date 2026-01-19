@@ -51,6 +51,7 @@ def buildSequenceSummary(allRows):
 def spsLogbook(directory):
     allRows = OpDB().query_dataframe(sql_all)
     allRows.columns = allColumns
+    allRows[['name', 'comments']] = allRows[['name', 'comments']].fillna('')
     opdbLogs = buildSequenceSummary(allRows)
     output = os.path.join(directory, 'index.html')
     opdbLogs.to_html(output)
