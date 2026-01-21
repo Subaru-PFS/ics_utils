@@ -7,6 +7,28 @@ import pfs.utils.ingestPfsDesign as ingestPfsDesign
 from pfs.datamodel import PfsDesign, PfsConfig
 
 
+def _iterRecentDateDirs(rawRoot="/data/raw", maxDateDirs=7):
+    """Yield up to maxDateDirs most-recent date directories under rawRoot."""
+    dateDirs = glob.glob(os.path.join(rawRoot, "20??-??-??"))
+    dateDirs = [d for d in dateDirs if os.path.isdir(d)]
+    dateDirs.sort(reverse=True)
+
+    for d in dateDirs[:maxDateDirs]:
+        yield d
+
+
+def _findPfsConfigPath(designId, visit0, rawRoot="/data/raw", maxDateDirs=7):
+    """Find pfsConfig path by checking up to maxDateDirs recent date directories."""
+    fileName = "pfsConfig-0x%016x-%06d.fits" % (designId, visit0)
+
+    for dateDir in _iterRecentDateDirs(rawRoot=rawRoot, maxDateDirs=maxDateDirs):
+        candidate = os.path.join(dateDir, "pfsConfig", fileName)
+        if os.path.isfile(candidate):
+            return candidate, dateDir
+
+    return None, None
+
+
 class PfsField(object):
     """Hold pfsDesign, visit0, pfsConfig..."""
 
@@ -110,23 +132,24 @@ class PfsField(object):
 
         return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit)
 
-    def loadPfsConfig0(self, designId, visit0, doIgnore=False):
+    def loadPfsConfig0(self, designId, visit0, doIgnore=False, rawRoot="/data/raw", maxDateDirs=7):
         """Load pfsConfig file after fps convergence."""
-        # if designId does not match do not do anything.
         if designId != self.pfsDesignId:
             return
 
-        lastDate = max(glob.glob('/data/raw/20*-*-*'), key=os.path.getmtime)
-        dirName = os.path.join(lastDate, 'pfsConfig')
-        pfsConfigPath = os.path.join(dirName, 'pfsConfig-0x%016x-%06d.fits' % (designId, visit0))
+        pfsConfigPath, dateDir = _findPfsConfigPath(designId, visit0, rawRoot=rawRoot, maxDateDirs=maxDateDirs)
 
-        # do not raise error at this point.
-        if not os.path.isfile(pfsConfigPath) and doIgnore:
-            return
+        if pfsConfigPath is None:
+            msg = f"pfsConfig0 not found for designId=0x{designId:016x} visit0={visit0:06d} in last {maxDateDirs} dates"
+            if doIgnore:
+                self.logger.warning(msg)
+                return
+
+            raise FileNotFoundError(msg)
 
         self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
         try:
-            self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=dirName)
+            self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=os.path.join(dateDir, 'pfsConfig'))
         except Exception as e:
             self.logger.warning(str(e), exc_info=True)
 
