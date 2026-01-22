@@ -25,8 +25,8 @@ class VisitManager(object):
         activeField = pfsField.PfsField.declareNew(self.actor, pfsDesignId, visit0)
 
         # if the same pfsDesign is re-declared for some reason hold on to the previous fpsConfig.
-        if self.activeField and self.activeField.pfsDesignId == activeField.pfsDesignId:
-            activeField.holdPfsConfig0(self.activeField.pfsConfig0)
+        if self.activeField and genVisit0:
+            activeField.setPfsConfig0(self.activeField.pfsConfig0)
 
         self.activeField = activeField
 
