@@ -32,7 +32,7 @@ def _findPfsConfigPath(designId, visit0, rawRoot="/data/raw", maxDateDirs=7):
 class PfsField(object):
     """Hold pfsDesign, visit0, pfsConfig..."""
 
-    def __init__(self, iicActor, pfsDesignId, agV, fpsV, spsV):
+    def __init__(self, iicActor, pfsDesignId, agV, fpsV, spsV, pfsConfigId=None, visit0=None):
         self.logger = logging.getLogger('pfsField')
         self.iicActor = iicActor
         self.visit = dict(ag=pfsVisit.AgVisit(agV, name='visit0'),
@@ -43,8 +43,12 @@ class PfsField(object):
         self.pfsDesign = PfsDesign.read(pfsDesignId, dirName=iicActor.actorConfig['pfsDesign']['rootDir'])
         self.pfsConfig0 = None
 
+        pfsConfigId = self.pfsDesignId if pfsConfigId is None else pfsConfigId
+        visit0 = self.fpsVisitId if visit0 is None else visit0
+
         # try to reload pfsConfig as well as it might already exist.
-        self.loadPfsConfig0(self.pfsDesignId, self.fpsVisitId, doIgnore=True)
+        if visit0:
+            self.loadPfsConfig0(pfsConfigId, visit0, doIgnore=True)
 
     @property
     def fpsVisitId(self):
@@ -52,11 +56,15 @@ class PfsField(object):
 
     @property
     def visit0(self):
-        return self.pfsConfig0.visit if self.pfsConfig0 else self.fpsVisitId
+        return None if self.pfsConfig0 is None else self.pfsConfig0.visit0
 
     @property
     def pfsDesignId(self):
         return self.pfsDesign.pfsDesignId
+
+    @property
+    def pfsConfigId(self):
+        return None if self.pfsConfig0 is None else self.pfsConfig0.pfsDesignId
 
     @classmethod
     def declareNew(cls, iicActor, pfsDesignId, visit0):
@@ -74,7 +82,8 @@ class PfsField(object):
         """Persist pfsField members to disk."""
         self.iicActor.actorData.persistKey('pfsField',
                                            '0x%016x' % self.pfsDesign.pfsDesignId,
-                                           *[self.visit[sub].visitId for sub in ['ag', 'fps', 'sps']])
+                                           *[self.visit[sub].visitId for sub in ['ag', 'fps', 'sps']],
+                                           self.pfsConfigId, self.visit0)
 
     def getVisit(self, caller):
         """Get visit for caller."""
@@ -117,26 +126,37 @@ class PfsField(object):
 
         return position
 
-    def makePfsConfig(self, visitId, cards, camMask):
+    def makePfsConfig(self, visitId, cards, camMask, forcePfsConfig=False):
         """Create and return a new pfsConfig object for this visit."""
-        # no pfsConfig0 means that there is no matching fps.pfsConfig, so create it from pfsDesign.
+        if self.pfsDesign is None:
+            raise RuntimeError('no PfsDesign is declared as current')
+
         if self.pfsConfig0 is None:
+            if not forcePfsConfig:
+                raise RuntimeError(f'no pfsConfig0 found for the current PfsDesign ({self.pfsDesign.filename})')
+
             self.logger.info('pfsConfig0 is not available, creating it from current PfsDesign.')
-            self.pfsConfig0 = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId,
-                                                      pfiCenter=self.pfsDesign.pfiNominal)
+            self.setPfsConfig0(PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId,
+                                                       pfiCenter=self.pfsDesign.pfiNominal))
             ingestPfsDesign.ingestPfsConfig(self.pfsConfig0)
 
             # we do not want fps visit to fall behind.
-            if self.fpsVisitId != self.pfsConfig0.visit:
+            if self.fpsVisitId < self.pfsConfig0.visit:
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
+
+        if self.pfsConfig0.pfsDesignId != self.pfsDesignId:
+            if not forcePfsConfig:
+                raise RuntimeError(
+                    f'pfsConfig0 ({self.pfsConfig0.filename}) does not match the current PfsDesign ({self.pfsDesign.filename})'
+                )
+            self.logger.info(
+                f'forcePfsConfig=True proceeding even though pfsConfig0 ({self.pfsConfig0.filename}) does not match the current PfsDesign ({self.pfsDesign.filename})'
+            )
 
         return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit)
 
     def loadPfsConfig0(self, designId, visit0, doIgnore=False, rawRoot="/data/raw", maxDateDirs=7):
         """Load pfsConfig file after fps convergence."""
-        if designId != self.pfsDesignId:
-            return
-
         pfsConfigPath, dateDir = _findPfsConfigPath(designId, visit0, rawRoot=rawRoot, maxDateDirs=maxDateDirs)
 
         if pfsConfigPath is None:
@@ -149,19 +169,21 @@ class PfsField(object):
 
         self.logger.info(f'loading pfsConfig0 from {pfsConfigPath}')
         try:
-            self.pfsConfig0 = PfsConfig.read(designId, visit0, dirName=os.path.join(dateDir, 'pfsConfig'))
+            self.setPfsConfig0(PfsConfig.read(designId, visit0, dirName=os.path.join(dateDir, 'pfsConfig')))
         except Exception as e:
             self.logger.warning(str(e), exc_info=True)
 
-    def holdPfsConfig0(self, pfsConfig0):
+    def setPfsConfig0(self, pfsConfig0):
         """Same pfsDesign was re-declared, hold on to the latest pfsConfig0"""
-        # no need to go further.
         if pfsConfig0 is None:
-            return
+            self.logger.warning('resetting pfsConfig0...')
 
-        self.logger.info(
-            f'holding pfsConfig0 from pfsConfig-0x%016x-%06d.fits' % (pfsConfig0.pfsDesignId, pfsConfig0.visit))
+        else:
+            self.logger.info(
+                f'Setting current pfsConfig0 : pfsConfig-0x%016x-%06d.fits' % (pfsConfig0.pfsDesignId,
+                                                                               pfsConfig0.visit))
         self.pfsConfig0 = pfsConfig0
+        self.persist()
 
     def lockVisit(self):
         """The current visit won't be available anymore."""
