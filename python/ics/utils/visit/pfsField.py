@@ -4,7 +4,7 @@ import os
 
 import ics.utils.visit.pfsVisit as pfsVisit
 import pfs.utils.ingestPfsDesign as ingestPfsDesign
-from pfs.datamodel import PfsDesign, PfsConfig
+from pfs.datamodel import PfsDesign, PfsConfig, InstrumentStatusFlag
 
 
 def _iterRecentDateDirs(rawRoot="/data/raw", maxDateDirs=7):
@@ -151,6 +151,16 @@ class PfsField(object):
                 )
             self.logger.info(
                 f'forcePfsConfig=True proceeding even though pfsConfig0 ({self.pfsConfig0.filename}) does not match the current PfsDesign ({self.pfsDesign.filename})'
+            )
+
+        if self.pfsConfig0.instStatusFlag & InstrumentStatusFlag.CONVERGENCE_FAILED:
+            if not forcePfsConfig:
+                raise RuntimeError(
+                    f'Cannot create pfsConfig: CONVERGENCE_FAILED bit is set '
+                    f'for pfsConfig-0x{self.pfsConfig0.pfsDesignId:016x}-{self.pfsConfig0.visit:06d}'
+                )
+            self.logger.info(
+                'forcePfsConfig=True proceeding even though CONVERGENCE_FAILED bit is set'
             )
 
         return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit)
