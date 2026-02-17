@@ -78,6 +78,16 @@ class PfsField(object):
         """Reload pfsField object when iicActor restart."""
         return cls(iicActor, *iicActor.actorData.loadKey('pfsField'))
 
+    @staticmethod
+    def formatPfsConfig0Id(pfsDesignId, visit0):
+        """Return canonical pfsConfig0 identifier string from designId and visit."""
+        return f'pfsConfig0-0x{pfsDesignId:016x}-{visit0:06d}'
+
+    def getPfsConfig0Id(self, pfsConfig0=None):
+        """Return canonical pfsConfig0 identifier for current or given pfsConfig0."""
+        pfsConfig0 = self.pfsConfig0 if pfsConfig0 is None else pfsConfig0
+        return self.formatPfsConfig0Id(pfsConfig0.pfsDesignId, pfsConfig0.visit)
+
     def persist(self):
         """Persist pfsField members to disk."""
         self.iicActor.actorData.persistKey('pfsField',
@@ -128,6 +138,13 @@ class PfsField(object):
 
     def makePfsConfig(self, visitId, cards, camMask, forcePfsConfig=False):
         """Create and return a new pfsConfig object for this visit."""
+
+        def makeMessages(reason):
+            idAndMsg = f'{self.getPfsConfig0Id()} : {reason}'
+            errorMsg = f'{idAndMsg}, use forcePfsConfig=True to proceed.'
+            logMsg = f'{idAndMsg}, forcePfsConfig=True proceeding anyway.'
+            return errorMsg, logMsg
+
         if self.pfsDesign is None:
             raise RuntimeError('no PfsDesign is declared as current')
 
@@ -145,23 +162,16 @@ class PfsField(object):
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
 
         if self.pfsConfig0.pfsDesignId != self.pfsDesignId:
+            errorMsg, logMsg = makeMessages(f'does not match the current PfsDesign ({self.pfsDesign.filename})')
             if not forcePfsConfig:
-                raise RuntimeError(
-                    f'pfsConfig0 ({self.pfsConfig0.filename}) does not match the current PfsDesign ({self.pfsDesign.filename})'
-                )
-            self.logger.info(
-                f'forcePfsConfig=True proceeding even though pfsConfig0 ({self.pfsConfig0.filename}) does not match the current PfsDesign ({self.pfsDesign.filename})'
-            )
+                raise RuntimeError(errorMsg)
+            self.logger.info(logMsg)
 
         if self.pfsConfig0.instStatusFlag & InstrumentStatusFlag.CONVERGENCE_FAILED:
+            errorMsg, logMsg = makeMessages('CONVERGENCE_FAILED bit is set')
             if not forcePfsConfig:
-                raise RuntimeError(
-                    f'Cannot create pfsConfig: CONVERGENCE_FAILED bit is set '
-                    f'for pfsConfig-0x{self.pfsConfig0.pfsDesignId:016x}-{self.pfsConfig0.visit:06d}'
-                )
-            self.logger.info(
-                'forcePfsConfig=True proceeding even though CONVERGENCE_FAILED bit is set'
-            )
+                raise RuntimeError(errorMsg)
+            self.logger.info(logMsg)
 
         return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit)
 
@@ -170,7 +180,7 @@ class PfsField(object):
         pfsConfigPath, dateDir = _findPfsConfigPath(designId, visit0, rawRoot=rawRoot, maxDateDirs=maxDateDirs)
 
         if pfsConfigPath is None:
-            msg = f"pfsConfig0 not found for designId=0x{designId:016x} visit0={visit0:06d} in last {maxDateDirs} dates"
+            msg = f"{self.formatPfsConfig0Id(designId, visit0)} not found in last {maxDateDirs} dates"
             if doIgnore:
                 self.logger.warning(msg)
                 return
@@ -187,11 +197,9 @@ class PfsField(object):
         """Same pfsDesign was re-declared, hold on to the latest pfsConfig0"""
         if pfsConfig0 is None:
             self.logger.warning('resetting pfsConfig0...')
-
         else:
-            self.logger.info(
-                f'Setting current pfsConfig0 : pfsConfig-0x%016x-%06d.fits' % (pfsConfig0.pfsDesignId,
-                                                                               pfsConfig0.visit))
+            self.logger.info(f'Setting current pfsConfig0 : {self.getPfsConfig0Id(pfsConfig0)}')
+
         self.pfsConfig0 = pfsConfig0
         self.persist()
 
