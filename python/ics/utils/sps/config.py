@@ -566,16 +566,34 @@ class SpsConfig(dict):
         for specModule in specModules:
             spsData.persistKey(f'{specModule.specName}LightSource', lightSource)
 
-    def keysToCam(self, cmdKeys):
+    def keysToCam(self, cmdKeys, configDict=None):
         """
         Identify the cameras based on the provided command keywords.
 
+        Resolution priority is:
+          1) cmdKeys (explicit command-line args)
+          2) configDict (optional defaults)
+          3) None (meaning "all", interpreted by self.identify)
+
         Parameters:
         cmdKeys (opscore.protocols.messages.Keywords): Command keywords.
+        configDict (dict or None): Optional defaults for cams/specNums/arms (supports both plural and singular keys).
 
         Returns:
         list: A list of identified cameras.
         """
+
+        def resolveKey(*idKeys):
+            """Resolve a key from cmdKeys first, then configDict, else None."""
+            for key in idKeys:
+                if key in cmdKeys:
+                    return cmdKeys[key].values
+
+            for key in idKeys:
+                if configDict and key in configDict:
+                    return configDict[key]
+
+            return None
 
         def translateCam(camArgs):
             """
@@ -631,16 +649,12 @@ class SpsConfig(dict):
 
             return cams, specNums, arms
 
-        # identify cams
-        cams = cmdKeys['cams'].values if 'cams' in cmdKeys else None
-        cams = cmdKeys['cam'].values if 'cam' in cmdKeys else cams
-        # identify specNums
-        specNums = cmdKeys['specNums'].values if 'specNums' in cmdKeys else None
-        specNums = cmdKeys['specNum'].values if 'specNum' in cmdKeys else specNums
-        # identify arms
-        arms = cmdKeys['arms'].values if 'arms' in cmdKeys else None
-        arms = cmdKeys['arm'].values if 'arm' in cmdKeys else arms
+        # Identify cams/specNums/arms from cmdKeys first, then configDict, else None (meaning "all").
+        cams = resolveKey('cams', 'cam')
+        specNums = resolveKey('specNums', 'specNum')
+        arms = resolveKey('arms', 'arm')
 
+        # If cams is present, it may be the gen2-style mixed specification (e.g. ['b', 'sm1', 'r2']).
         if cams:
             if specNums or arms:
                 raise ValueError('you cannot provide both cam and (specNum or arm)')
