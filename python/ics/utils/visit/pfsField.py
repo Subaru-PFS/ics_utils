@@ -136,7 +136,7 @@ class PfsField(object):
 
         return position
 
-    def makePfsConfig(self, visitId, cards, camMask, forcePfsConfig=False):
+    def makePfsConfig(self, visitId, cards, camMask, forcePfsConfig=False, versions=None):
         """Create and return a new pfsConfig object for this visit."""
 
         def makeMessages(reason):
@@ -153,8 +153,10 @@ class PfsField(object):
                 raise RuntimeError(f'no pfsConfig0 found for the current PfsDesign ({self.pfsDesign.filename})')
 
             self.logger.info('pfsConfig0 is not available, creating it from current PfsDesign.')
-            self.setPfsConfig0(PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId,
-                                                       pfiCenter=self.pfsDesign.pfiNominal))
+            self.setPfsConfig0(PfsConfig.fromPfsDesign(self.pfsDesign,
+                                                       visit=visitId,
+                                                       pfiCenter=self.pfsDesign.pfiNominal,
+                                                       versions0=versions))
             ingestPfsDesign.ingestPfsConfig(self.pfsConfig0)
 
             # we do not want fps visit to fall behind.
@@ -173,7 +175,8 @@ class PfsField(object):
                 raise RuntimeError(errorMsg)
             self.logger.info(logMsg)
 
-        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit)
+        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit,
+                                    versions=versions)
 
     def loadPfsConfig0(self, designId, visit0, doIgnore=False, rawRoot="/data/raw", maxDateDirs=7):
         """Load pfsConfig file after fps convergence."""
