@@ -3,6 +3,7 @@ import logging
 import os
 
 import ics.utils.visit.pfsVisit as pfsVisit
+import numpy as np
 import pfs.utils.ingestPfsDesign as ingestPfsDesign
 from pfs.datamodel import PfsDesign, PfsConfig, InstrumentStatusFlag
 
@@ -136,47 +137,127 @@ class PfsField(object):
 
         return position
 
-    def makePfsConfig(self, visitId, cards, camMask, forcePfsConfig=False, versions=None):
-        """Create and return a new pfsConfig object for this visit."""
+    def makePfsConfig(self, visitId, cards, camMask, forcePfsConfig=False, versions=None, isPfiExposure=False):
+        """Create and return a new pfsConfig for this visit.
 
-        def makeMessages(reason):
-            idAndMsg = f'{self.getPfsConfig0Id()} : {reason}'
-            errorMsg = f'{idAndMsg}, use forcePfsConfig=True to proceed.'
-            logMsg = f'{idAndMsg}, forcePfsConfig=True proceeding anyway.'
-            return errorMsg, logMsg
+        If no pfsConfig0 exists, one is bootstrapped from the current PfsDesign.
+        For PFI (science) exposures, pfsConfig0 is validated against the current
+        design and convergence status before proceeding.
 
+        Parameters
+        ----------
+        visitId : `int`
+            Visit ID for the new pfsConfig.
+        cards : FITS header
+            Header cards to embed in the pfsConfig.
+        camMask : `int`
+            Bitmask of selected cameras.
+        forcePfsConfig : `bool`, optional
+            If True, bypass pfsConfig0 validation checks and proceed with warnings.
+        versions : `dict`, optional
+            Software versions to embed.
+        isPfiExposure : `bool`, optional
+            True for science (PFI) exposures, which require a valid pfsConfig0
+            from a prior FPS convergence.
+
+        Returns
+        -------
+        pfsConfig : `PfsConfig`
+            New pfsConfig copied from pfsConfig0 for the given visit.
+
+        Raises
+        ------
+        RuntimeError
+            If no PfsDesign is declared, or if pfsConfig0 validation fails
+            and forcePfsConfig is False.
+        """
         if self.pfsDesign is None:
             raise RuntimeError('no PfsDesign is declared as current')
 
         if self.pfsConfig0 is None:
-            if not forcePfsConfig:
-                raise RuntimeError(f'no pfsConfig0 found for the current PfsDesign ({self.pfsDesign.filename})')
-
-            self.logger.info('pfsConfig0 is not available, creating it from current PfsDesign.')
-            self.setPfsConfig0(PfsConfig.fromPfsDesign(self.pfsDesign,
-                                                       visit=visitId,
-                                                       pfiCenter=self.pfsDesign.pfiNominal,
-                                                       versions0=versions))
+            self.pfsConfig0 = self._bootstrapPfsConfig0(visitId, versions, isPfiExposure, forcePfsConfig)
             ingestPfsDesign.ingestPfsConfig(self.pfsConfig0)
 
-            # we do not want fps visit to fall behind.
-            if self.fpsVisitId < self.pfsConfig0.visit:
+        if isPfiExposure:
+            self._validatePfsConfig0(camMask, forcePfsConfig)
+
+        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask,
+                                    visit0=self.pfsConfig0.visit, versions=versions)
+
+    def _bootstrapPfsConfig0(self, visitId, versions, isPfiExposure, forcePfsConfig):
+        """Create pfsConfig0 from scratch when none exists.
+
+        For non-PFI (engineering) exposures, pfiNominal is used as fiber positions.
+        For PFI (science) exposures, FPS convergence should have produced a pfsConfig0
+        already — bootstrapping is only allowed when forcePfsConfig=True, in which case
+        CONVERGENCE_SKIPPED is set and fiber positions are left as NaN.
+
+        Parameters
+        ----------
+        visitId : `int`
+            Visit ID for the new pfsConfig0.
+        versions : `dict`
+            Software versions to embed.
+        isPfiExposure : `bool`
+            True for science (PFI) exposures.
+        forcePfsConfig : `bool`
+            If True, allow bootstrapping even for PFI exposures without a prior convergence.
+
+        Raises
+        ------
+        RuntimeError
+            If isPfiExposure is True and forcePfsConfig is False.
+        """
+        if isPfiExposure and not forcePfsConfig:
+            raise RuntimeError(f'no pfsConfig0 found for the current PfsDesign ({self.pfsDesign.filename})')
+
+        self.logger.info('pfsConfig0 is not available, bootstrapping from current PfsDesign.')
+        pfsConfig0 = PfsConfig.fromPfsDesign(self.pfsDesign, visit=visitId,
+                                             pfiCenter=self.pfsDesign.pfiNominal.copy(), versions0=versions)
+
+        if isPfiExposure:
+            # No convergence was performed: flag it and clear fiber positions.
+            pfsConfig0.setInstrumentStatusFlag(InstrumentStatusFlag.CONVERGENCE_SKIPPED)
+            pfsConfig0.pfiCenter[:] = np.nan
+
+            # Keep fps visit in sync when bootstrapping ahead of convergence.
+            if self.fpsVisitId < visitId:
                 self.reconfigure('fps', newVisit=pfsVisit.FpsVisit(visitId, name='visit0'))
 
-        if self.pfsConfig0.pfsDesignId != self.pfsDesignId:
-            errorMsg, logMsg = makeMessages(f'does not match the current PfsDesign ({self.pfsDesign.filename})')
-            if not forcePfsConfig:
-                raise RuntimeError(errorMsg)
-            self.logger.info(logMsg)
+        return pfsConfig0
 
-        if self.pfsConfig0.instStatusFlag & InstrumentStatusFlag.CONVERGENCE_FAILED:
-            errorMsg, logMsg = makeMessages('CONVERGENCE_FAILED bit is set')
-            if not forcePfsConfig:
-                raise RuntimeError(errorMsg)
-            self.logger.info(logMsg)
+    def _validatePfsConfig0(self, camMask, forcePfsConfig):
+        """Validate pfsConfig0 against the current design and exposure requirements.
 
-        return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask, visit0=self.pfsConfig0.visit,
-                                    versions=versions)
+        Checks that pfsConfig0 matches the current designId, has no blocking status
+        flags (CONVERGENCE_FAILED, CONVERGENCE_SKIPPED), and covers the requested arms.
+        Each failed check either raises or logs a warning depending on forcePfsConfig.
+
+        Parameters
+        ----------
+        camMask : `int`
+            Bitmask of selected cameras, used to derive the required arms.
+        forcePfsConfig : `bool`
+            If True, log warnings instead of raising on failed checks.
+        """
+
+        def check(condition, reason):
+            if condition:
+                msg = f'{self.getPfsConfig0Id()} : {reason}'
+                if not forcePfsConfig:
+                    raise RuntimeError(f'{msg}, use forcePfsConfig=True to proceed.')
+                self.logger.info(f'{msg}, forcePfsConfig=True proceeding anyway.')
+
+        check(self.pfsConfig0.pfsDesignId != self.pfsDesignId,
+              f'does not match the current PfsDesign ({self.pfsDesign.filename})')
+        check(bool(self.pfsConfig0.instStatusFlag & InstrumentStatusFlag.CONVERGENCE_FAILED),
+              'CONVERGENCE_FAILED bit is set')
+        check(bool(self.pfsConfig0.instStatusFlag & InstrumentStatusFlag.CONVERGENCE_SKIPPED),
+              'CONVERGENCE_SKIPPED bit is set')
+
+        selectedArms = {cam[0] for cam in PfsConfig.toCameraList(camMask)}
+        diffArm = selectedArms - set(self.pfsConfig0.arms)
+        check(bool(diffArm), f"{','.join(diffArm)} not present in pfsConfig.arms")
 
     def loadPfsConfig0(self, designId, visit0, doIgnore=False, rawRoot="/data/raw", maxDateDirs=7):
         """Load pfsConfig file after fps convergence."""
