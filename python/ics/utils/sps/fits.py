@@ -400,6 +400,8 @@ class SpsFits:
                         lampState, lampTime = False, 0.0
                     else:
                         lampState, lampTime = inferLampStateAndTime(key, lampModel)
+                    if lampState or lampTime > 0:
+                        self.logger.info(f'lamp {key} is {lampState} for {lampTime}, setting {lampStateKey} and {lampTimeKey}')
                     lampCards.append(dict(name=lampStateKey, value=lampState,
                                             comment=f'{key.capitalize()} lamp state'))
                     lampCards.append(dict(name=lampTimeKey, value=lampTime,
