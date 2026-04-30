@@ -245,7 +245,7 @@ class PfsField(object):
             if condition:
                 msg = f'{self.getPfsConfig0Id()} : {reason}'
                 if not forcePfsConfig:
-                    raise RuntimeError(f'{msg}, use forcePfsConfig=True to proceed.')
+                    raise RuntimeError(f'{msg}, use forcePfsConfig to proceed.')
                 self.logger.info(f'{msg}, forcePfsConfig=True proceeding anyway.')
 
         check(self.pfsConfig0.pfsDesignId != self.pfsDesignId,
