@@ -263,6 +263,21 @@ class SpsFits:
         else:
             return lightSource
 
+    def getIisSource(self, cmd):
+        """Return our iis lamp source (enu, iis). """
+
+        sm = self.actor.ids.specNum
+        try:
+            iisModel = self.actor.models['iis'].keyVarDict
+            iisModules = iisModel['modules'].getValue()
+        except Exception as e:
+            cmd.warn('text="failed to fetch iis modules card!!! %s"' % (e))
+            return "enu"
+
+        if str(sm) in iisModules:
+            return "iis"
+        return "enu"
+
     def getImageCards(self, cmd=None):
         """Return the FITS cards for the image HDU, WCS, basically.
 
@@ -336,7 +351,9 @@ class SpsFits:
         sources = []
         lampCards = []
         lampSource = self.getLampSource(cmd)
-        self.logger.info(f'lampSource={lampSource}, with visit={visit} and shutterVisit={shutterVisit}')
+        iisSource = self.getIisSource(cmd)
+        self.logger.info(f'lampSource={lampSource} iisSource={iisSource}, '
+                         f'with visit={visit} and shutterVisit={shutterVisit}')
 
         # Science fiber lamps
         if lampSource in {'dcb', 'dcb2', 'pfilamps'}:
@@ -358,13 +375,23 @@ class SpsFits:
                 cmd.warn(f'text="failed to get {lampSource} model, no lampCards could be retrieved : {e}"')
 
         # Engineering fiber lamps
-        iisLampDefs = [('halogen', 'W_ENIQTH', 'W_ILQTHT'),
-                       ('argon', 'W_ENIARG', 'W_ILARGT'),
-                       ('hgar', 'W_ENIHGA', 'W_ILHGAT'),
-                       ('krypton', 'W_ENIKRY', 'W_ILKRYT'),
-                       ('neon', 'W_ENINEO', 'W_ILNEOT'),]
-        sources.append((enuModel, iisLampDefs))
-
+        if iisSource == 'enu':
+            iisLampDefs = [('halogen', 'W_ENIQTH', 'W_ILQTHT'),
+                           ('argon', 'W_ENIARG', 'W_ILARGT'),
+                           ('hgar', 'W_ENIHGA', 'W_ILHGAT'),
+                           ('krypton', 'W_ENIKRY', 'W_ILKRYT'),
+                           ('neon', 'W_ENINEO', 'W_ILNEOT'),]
+            sources.append((enuModel, iisLampDefs))
+        else:
+            iisModel = self.actor.models["iis"]
+            iisLampDefs = [('halogen', 'W_IISQTH', 'W_ISQTHT'),
+                           ('argon', 'W_IISARG', 'W_ISARGT'),
+                           ('hgar', 'W_IISHGA', 'W_ISHGAT'),
+                           ('krypton', 'W_IISKRY', 'W_ISKRYT'),
+                           ('hydrogen', 'W_IISHYD', 'W_ISHYDT'),
+                           ('helium', 'W_IISHE', 'W_ISHET'),
+                           ('neon', 'W_IISNEO', 'W_ISNEOT'),]
+            sources.append((iisModel, iisLampDefs))
         for lampModel, lampDefs in sources:
             self.logger.info(f'{lampModel} : {len(lampDefs)}')
             for key, lampStateKey, lampTimeKey in lampDefs:
@@ -373,6 +400,8 @@ class SpsFits:
                         lampState, lampTime = False, 0.0
                     else:
                         lampState, lampTime = inferLampStateAndTime(key, lampModel)
+                    if lampState or lampTime > 0:
+                        self.logger.info(f'lamp {key} is {lampState} for {lampTime}, setting {lampStateKey} and {lampTimeKey}')
                     lampCards.append(dict(name=lampStateKey, value=lampState,
                                             comment=f'{key.capitalize()} lamp state'))
                     lampCards.append(dict(name=lampTimeKey, value=lampTime,
