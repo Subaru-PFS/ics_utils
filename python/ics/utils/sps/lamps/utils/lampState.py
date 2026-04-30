@@ -2,7 +2,8 @@ __author__ = 'alefur'
 
 import ics.utils.time as pfsTime
 
-warmingTime = dict(neon=15, xenon=15, krypton=15, argon=15, halogen=15, hgar=60, allFiberLamp=15, hgcd=60)
+warmingTime = dict(neon=15, xenon=15, krypton=15, argon=15, halogen=15, hgar=60, allFiberLamp=15, hgcd=60,
+                   hydrogen=15, helium=15)
 allLamps = list(warmingTime.keys())
 
 
