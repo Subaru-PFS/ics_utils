@@ -74,6 +74,15 @@ class Visit(object):
         """Declare that we should not be used anymore."""
         self.iAmDead = True
 
+    @property
+    def isPlaceholder(self):
+        """Whether this stands for the absence of a visit rather than a real one.
+
+        Visit id 0 is that absence: gen2 never issues it and no exposure is taken
+        against it, so it can never be handed out as a usable visit.
+        """
+        return self.visitId == 0
+
 
 class AgVisit(Visit):
     exposureTable = 'agc_exposure'
@@ -83,7 +92,7 @@ class AgVisit(Visit):
 
     @property
     def isAvailable(self):
-        return not self.isActive
+        return not (self.isPlaceholder or self.isActive)
 
 
 class FpsVisit(Visit):
@@ -94,7 +103,8 @@ class FpsVisit(Visit):
 
     @property
     def isAvailable(self):
-        return not (self.isActive or self.isPopulated or self.isPfsConfig0Populated)
+        return not (self.isPlaceholder or self.isActive or self.isPopulated
+                    or self.isPfsConfig0Populated)
 
     @property
     def isPfsConfig0Populated(self):
