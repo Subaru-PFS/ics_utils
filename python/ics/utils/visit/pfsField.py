@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+from datetime import datetime, timezone
 
 import ics.utils.visit.pfsVisit as pfsVisit
 import numpy as np
@@ -163,7 +164,8 @@ class PfsField(object):
         Returns
         -------
         pfsConfig : `PfsConfig`
-            New pfsConfig copied from pfsConfig0 for the given visit.
+            New pfsConfig copied from pfsConfig0 for the given visit, with the
+            current time as its obstime.
 
         Raises
         ------
@@ -182,7 +184,8 @@ class PfsField(object):
             self._validatePfsConfig0(camMask, forcePfsConfig)
 
         return self.pfsConfig0.copy(visit=visitId, header=cards, camMask=camMask,
-                                    visit0=self.pfsConfig0.visit, versions=versions)
+                                    visit0=self.pfsConfig0.visit, versions=versions,
+                                    obstime=datetime.now(timezone.utc).isoformat())
 
     def _bootstrapPfsConfig0(self, visitId, versions, isPfiExposure, forcePfsConfig):
         """Create pfsConfig0 from scratch when none exists.
