@@ -1,4 +1,3 @@
-import functools
 import logging
 import os
 import re
@@ -26,12 +25,8 @@ def idFromHostname(hostname=None):
     return None
 
 
-@functools.lru_cache(maxsize=None)
 def getSite():
-    """ Return the site name: $PFS_SITE if set, else the DNS TXT record pfs-site., else 'S'.
-
-    The lookup is done once per process.
-    """
+    """ Return the site name: $PFS_SITE if set, otherwise extracted from a DNS TXT record. """
 
     defaultSite = 'S'
 
@@ -39,13 +34,12 @@ def getSite():
     if site:
         return site
 
-    import dns.exception
     import dns.resolver
     try:
         ans = dns.resolver.query('pfs-site.', 'TXT')
         site = ans[0].strings[0].decode('latin-1')
-    except dns.exception.DNSException as e:
-        logging.warning(f'no "pfs-site." record found in DNS ({type(e).__name__}), using "{defaultSite}"')
+    except dns.resolver.NXDOMAIN:
+        logging.warn(f'no "pfs-site." record found in DNS, using "{defaultSite}"')
         site = defaultSite
 
     return site
