@@ -100,6 +100,8 @@ class Sim(socket.socket):
             if self.outlets[longest] == 'off':
                 break
 
+            time.sleep(0.1)
+
         self.buf.append(f'OK;;{self.getState()}tcpover\n')
 
     def getState(self):
